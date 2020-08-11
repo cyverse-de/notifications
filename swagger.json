@@ -30,6 +30,36 @@
           }
         }
       }
+    },
+    "/v1": {
+      "get": {
+        "description": "Lists general information about API version 1.",
+        "tags": [
+          "misc"
+        ],
+        "summary": "Information About API Version 1",
+        "operationId": "getRoot",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/v1RootResponse"
+          }
+        }
+      }
+    },
+    "/v2": {
+      "get": {
+        "description": "Lists general information about API version 2.",
+        "tags": [
+          "misc"
+        ],
+        "summary": "Information About API Version 2",
+        "operationId": "getRoot",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/v2RootResponse"
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -48,9 +78,32 @@
       "type": "object",
       "title": "RootResponse describes the response of the root endpoint.",
       "properties": {
-        "Version": {
-          "description": "The service version",
-          "type": "string"
+        "service": {
+          "description": "The name of the service.",
+          "type": "string",
+          "x-go-name": "Service"
+        },
+        "title": {
+          "description": "The service title.",
+          "type": "string",
+          "x-go-name": "Title"
+        },
+        "version": {
+          "description": "The service version.",
+          "type": "string",
+          "x-go-name": "Version"
+        }
+      },
+      "x-go-package": "github.com/cyverse-de/notifications/model"
+    },
+    "VersionRootResponse": {
+      "type": "object",
+      "title": "VersionRootResponse describes the response of the root enpdpoint for an API version.",
+      "properties": {
+        "api_version": {
+          "description": "The API version.",
+          "type": "string",
+          "x-go-name": "APIVersion"
         },
         "service": {
           "description": "The name of the service.",
@@ -61,6 +114,11 @@
           "description": "The service title.",
           "type": "string",
           "x-go-name": "Title"
+        },
+        "version": {
+          "description": "The service version.",
+          "type": "string",
+          "x-go-name": "Version"
         }
       },
       "x-go-package": "github.com/cyverse-de/notifications/model"
@@ -77,6 +135,18 @@
       "description": "General information about the API.",
       "schema": {
         "$ref": "#/definitions/RootResponse"
+      }
+    },
+    "v1RootResponse": {
+      "description": "Information About API Version 1",
+      "schema": {
+        "$ref": "#/definitions/VersionRootResponse"
+      }
+    },
+    "v2RootResponse": {
+      "description": "Information About API Version 2",
+      "schema": {
+        "$ref": "#/definitions/VersionRootResponse"
       }
     }
   }

@@ -94,7 +94,7 @@ func main() {
 	// Add middleware.
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	e.Use(redoc.Serve(redoc.Opts{Title: "DE Administrative Requests API Documentation"}))
+	e.Use(redoc.Serve(redoc.Opts{Title: "DE Notifications API Documentation"}))
 
 	// TODO: replace this with code that loads the service information from the Swagger JSON
 	e.Logger.Info("loading service information")

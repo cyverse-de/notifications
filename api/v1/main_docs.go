@@ -17,7 +17,7 @@ package v1
 
 import "github.com/cyverse-de/notifications/model"
 
-// swagger:route GET /v1 misc getRoot
+// swagger:route GET /v1 v1 getRoot
 //
 // Information About API Version 1
 //

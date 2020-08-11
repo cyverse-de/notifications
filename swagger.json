@@ -1,0 +1,83 @@
+{
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "schemes": [
+    "http"
+  ],
+  "swagger": "2.0",
+  "info": {
+    "description": "Documentation of the DE Notifications API",
+    "title": "DE Notifications API",
+    "version": "1.0.0"
+  },
+  "basePath": "/",
+  "paths": {
+    "/": {
+      "get": {
+        "description": "Lists general information about the service API itself.",
+        "tags": [
+          "misc"
+        ],
+        "summary": "General API Information",
+        "operationId": "getRoot",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/rootResponse"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "ErrorResponse": {
+      "type": "object",
+      "title": "ErrorResponse describes an error response for any endpoint.",
+      "properties": {
+        "message": {
+          "type": "string",
+          "x-go-name": "Message"
+        }
+      },
+      "x-go-package": "github.com/cyverse-de/notifications/model"
+    },
+    "RootResponse": {
+      "type": "object",
+      "title": "RootResponse describes the response of the root endpoint.",
+      "properties": {
+        "Version": {
+          "description": "The service version",
+          "type": "string"
+        },
+        "service": {
+          "description": "The name of the service.",
+          "type": "string",
+          "x-go-name": "Service"
+        },
+        "title": {
+          "description": "The service title.",
+          "type": "string",
+          "x-go-name": "Title"
+        }
+      },
+      "x-go-package": "github.com/cyverse-de/notifications/model"
+    }
+  },
+  "responses": {
+    "errorResponse": {
+      "description": "Basic error response.",
+      "schema": {
+        "$ref": "#/definitions/ErrorResponse"
+      }
+    },
+    "rootResponse": {
+      "description": "General information about the API.",
+      "schema": {
+        "$ref": "#/definitions/RootResponse"
+      }
+    }
+  }
+}

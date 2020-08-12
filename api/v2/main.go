@@ -10,6 +10,7 @@ import (
 
 // API defines version 1 of the REST API for the notifications service.
 type API struct {
+	Echo         *echo.Echo
 	Group        *echo.Group
 	AMQPSettings *common.AMQPSettings
 	Service      string

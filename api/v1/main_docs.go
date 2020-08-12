@@ -32,3 +32,24 @@ type rootResponseWrapper struct {
 	// in:body
 	Body model.VersionRootResponse
 }
+
+// swagger:route POST /v1/notification requestNotificationV1
+//
+// Request a Notification
+//
+// Submits a request for a notification to be sent to a user.
+//
+// responses:
+//   200: emptyResponse
+//   400: errorResponse
+//   500: errorResponse
+
+// Parameters for requesting a notification.
+// swagger:parameters requestNotificationV1
+type requestNotificationParameters struct {
+
+	// The notificaiton request.
+	//
+	// in:body
+	Body model.V1NotificationRequest
+}

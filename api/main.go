@@ -36,6 +36,7 @@ func (a API) RegisterHandlers() {
 	// Register the group for API version 1.
 	v1Group := a.Echo.Group("/v1")
 	v1API := v1.API{
+		Echo:         a.Echo,
 		Group:        v1Group,
 		AMQPSettings: a.AMQPSettings,
 		Service:      a.Service,
@@ -47,6 +48,7 @@ func (a API) RegisterHandlers() {
 	// Register the group for API version 2.
 	v2Group := a.Echo.Group("/v2")
 	v2API := v2.API{
+		Echo:         a.Echo,
 		Group:        v2Group,
 		AMQPSettings: a.AMQPSettings,
 		Service:      a.Service,

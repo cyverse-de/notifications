@@ -33,7 +33,7 @@ type rootResponseWrapper struct {
 	Body model.VersionRootResponse
 }
 
-// swagger:route POST /v1/notification requestNotificationV1
+// swagger:route POST /v1/notification v1 requestNotificationV1
 //
 // Request a Notification
 //

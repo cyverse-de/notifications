@@ -6,6 +6,7 @@ import (
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/model"
 	"github.com/labstack/echo"
+	"gopkg.in/cyverse-de/messaging.v7"
 )
 
 // API defines version 1 of the REST API for the notifications service.
@@ -13,6 +14,7 @@ type API struct {
 	Echo         *echo.Echo
 	Group        *echo.Group
 	AMQPSettings *common.AMQPSettings
+	AMQPClient   *messaging.Client
 	Service      string
 	Title        string
 	Version      string

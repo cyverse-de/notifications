@@ -8,12 +8,14 @@ import (
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/model"
 	"github.com/labstack/echo"
+	"gopkg.in/cyverse-de/messaging.v7"
 )
 
 // API defines the REST API of the notifications service
 type API struct {
 	Echo         *echo.Echo
 	AMQPSettings *common.AMQPSettings
+	AMQPClient   *messaging.Client
 	Service      string
 	Title        string
 	Version      string
@@ -39,6 +41,7 @@ func (a API) RegisterHandlers() {
 		Echo:         a.Echo,
 		Group:        v1Group,
 		AMQPSettings: a.AMQPSettings,
+		AMQPClient:   a.AMQPClient,
 		Service:      a.Service,
 		Title:        a.Title,
 		Version:      a.Version,
@@ -51,6 +54,7 @@ func (a API) RegisterHandlers() {
 		Echo:         a.Echo,
 		Group:        v2Group,
 		AMQPSettings: a.AMQPSettings,
+		AMQPClient:   a.AMQPClient,
 		Service:      a.Service,
 		Title:        a.Title,
 		Version:      a.Version,

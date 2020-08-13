@@ -1,5 +1,7 @@
 package model
 
+import "fmt"
+
 // RootResponse describes the response of the root endpoint.
 type RootResponse struct {
 
@@ -18,6 +20,20 @@ type ErrorResponse struct {
 
 	// A message describing the error.
 	Message string `json:"message"`
+}
+
+// InvalidRequestBody formats an error response indicating that the request body was invalid.
+func InvalidRequestBody(err error) *ErrorResponse {
+	return &ErrorResponse{
+		Message: fmt.Sprintf("invalid request body: %s", err.Error()),
+	}
+}
+
+// InternalError formats an error message indicating that an internal error occurred.
+func InternalError(err error) *ErrorResponse {
+	return &ErrorResponse{
+		Message: fmt.Sprintf("an internal error occurred: %s", err.Error()),
+	}
 }
 
 // SuccessResponse describes a succesfful response for endpoints with nothing else to return.
@@ -47,13 +63,13 @@ type VersionRootResponse struct {
 type V1NotificationRequest struct {
 
 	// The notification type.
-	Type string `json:"type"`
+	Type string `json:"type" validate:"required"`
 
 	// The username of the notification recipient.
-	User string `json:"user"`
+	User string `json:"user" validate:"required"`
 
 	// The subject line of the notification.
-	Subject string `json:"subject"`
+	Subject string `json:"subject" validate:"required"`
 
 	// The message text of the notification
 	Message string `json:"message"`

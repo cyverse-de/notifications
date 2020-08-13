@@ -9,9 +9,12 @@ import (
 	"github.com/cyverse-de/echo-middleware/redoc"
 	"github.com/cyverse-de/notifications/api"
 	"github.com/cyverse-de/notifications/common"
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/cyverse-de/messaging.v7"
 )
 
 // commandLineOptionValues represents the values of the options that were passed on the command line when this
@@ -82,6 +85,36 @@ func buildLoggerEntry(optionValues *commandLineOptionValues) *logrus.Entry {
 	})
 }
 
+// CustomValidator represents a validator that Echo can use to check incoming requests.
+type CustomValidator struct {
+	validator *validator.Validate
+}
+
+// Validate performs validation for an incoming request.
+func (cv CustomValidator) Validate(i interface{}) error {
+	return cv.validator.Struct(i)
+}
+
+// createMessagingClient creates a new AMQP messaging client and sets up publishing on that client.
+func createMessagingClient(amqpSettings *common.AMQPSettings) (*messaging.Client, error) {
+	wrapMsg := "unable to create the messaging client"
+
+	// Create the messaging client.
+	client, err := messaging.NewClient(amqpSettings.URI, false)
+	if err != nil {
+		return nil, errors.Wrap(err, wrapMsg)
+	}
+
+	// Set up publishing on the messaging client.
+	err = client.SetupPublishing(amqpSettings.ExchangeName)
+	if err != nil {
+		client.Close()
+		return nil, errors.Wrap(err, wrapMsg)
+	}
+
+	return client, nil
+}
+
 func main() {
 	optionValues := parseCommandLine()
 
@@ -90,6 +123,9 @@ func main() {
 
 	// Set a custom logger.
 	e.Logger = Logger{Entry: buildLoggerEntry(optionValues)}
+
+	// Register a custom validator.
+	e.Validator = &CustomValidator{validator: validator.New()}
 
 	// Add middleware.
 	e.Use(middleware.Logger())
@@ -117,10 +153,17 @@ func main() {
 		ExchangeType: cfg.GetString("amqp.exchange.type"),
 	}
 
+	// Create the messaging client.
+	amqpClient, err := createMessagingClient(amqpSettings)
+	if err != nil {
+		e.Logger.Fatalf("unable to create the messaging client: %s", err.Error())
+	}
+
 	// Define the primary API handler.
 	a := api.API{
 		Echo:         e,
 		AMQPSettings: amqpSettings,
+		AMQPClient:   amqpClient,
 		Service:      "notifications",
 		Title:        serviceInfo.Title,
 		Version:      serviceInfo.Version,

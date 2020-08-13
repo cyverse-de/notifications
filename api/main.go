@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"net/http"
 
 	v1 "github.com/cyverse-de/notifications/api/v1"
@@ -16,6 +17,7 @@ type API struct {
 	Echo         *echo.Echo
 	AMQPSettings *common.AMQPSettings
 	AMQPClient   *messaging.Client
+	DB           *sql.DB
 	Service      string
 	Title        string
 	Version      string
@@ -42,6 +44,7 @@ func (a API) RegisterHandlers() {
 		Group:        v1Group,
 		AMQPSettings: a.AMQPSettings,
 		AMQPClient:   a.AMQPClient,
+		DB:           a.DB,
 		Service:      a.Service,
 		Title:        a.Title,
 		Version:      a.Version,
@@ -55,6 +58,7 @@ func (a API) RegisterHandlers() {
 		Group:        v2Group,
 		AMQPSettings: a.AMQPSettings,
 		AMQPClient:   a.AMQPClient,
+		DB:           a.DB,
 		Service:      a.Service,
 		Title:        a.Title,
 		Version:      a.Version,

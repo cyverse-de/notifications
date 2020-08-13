@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/cyverse-de/notifications/common"
@@ -15,6 +16,7 @@ type API struct {
 	Group        *echo.Group
 	AMQPSettings *common.AMQPSettings
 	AMQPClient   *messaging.Client
+	DB           *sql.DB
 	Service      string
 	Title        string
 	Version      string

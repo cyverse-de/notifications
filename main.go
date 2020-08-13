@@ -9,12 +9,15 @@ import (
 	"github.com/cyverse-de/echo-middleware/redoc"
 	"github.com/cyverse-de/notifications/api"
 	"github.com/cyverse-de/notifications/common"
+	"github.com/cyverse-de/notifications/db"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/cyverse-de/messaging.v7"
+
+	_ "github.com/lib/pq"
 )
 
 // commandLineOptionValues represents the values of the options that were passed on the command line when this
@@ -159,11 +162,20 @@ func main() {
 		e.Logger.Fatalf("unable to create the messaging client: %s", err.Error())
 	}
 
+	// Establish the database connection.
+	e.Logger.Info("establishing the database connection")
+	databaseURI := cfg.GetString("notifications.db.uri")
+	db, err := db.InitDatabase("postgres", databaseURI)
+	if err != nil {
+		e.Logger.Fatalf("service initialization failed: %s", err.Error())
+	}
+
 	// Define the primary API handler.
 	a := api.API{
 		Echo:         e,
 		AMQPSettings: amqpSettings,
 		AMQPClient:   amqpClient,
+		DB:           db,
 		Service:      "notifications",
 		Title:        serviceInfo.Title,
 		Version:      serviceInfo.Version,

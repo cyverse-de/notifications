@@ -71,7 +71,7 @@ type V1NotificationRequest struct {
 	// The subject line of the notification.
 	Subject string `json:"subject" validate:"required"`
 
-	// The message text of the notification
+	// The message text of the notification.
 	Message string `json:"message"`
 
 	// True if an email should be sent for this notification.
@@ -82,4 +82,45 @@ type V1NotificationRequest struct {
 
 	// The notification payload, which contains arbitrary information about the notification.
 	Payload map[string]interface{} `json:"payload"`
+}
+
+// Notification describes a single notification in a notification listing.
+type Notification struct {
+
+	// True if the notification has been marked as deleted.
+	Deleted bool `json:"deleted"`
+
+	// The email address to send the notification to, if an email was requested.
+	Email bool `json:"email"`
+
+	// The template to use to generate the email, if an email was requested.
+	EmailTemplate string `json:"email_template"`
+
+	// General information about the notification message.
+	Message map[string]interface{} `json:"message"`
+
+	// More specific free-form information about the notification message.
+	Payload interface{} `json:"payload"`
+
+	// Indicates whether or not the message has been marked as seen by the user.
+	Seen bool `json:"seen"`
+
+	// The subject line of the notification.
+	Subject string `json:"subject"`
+
+	// The notification type.
+	Type string `json:"type"`
+
+	// The username of the notification recipient.
+	User string `json:"user"`
+}
+
+// NotificationListing describes the response body to a notification listing request.
+type NotificationListing struct {
+
+	// The message listing.
+	Messages []*Notification `json:"messages"`
+
+	// The total number of messages available to be listed.
+	Total int `json:"total"`
 }

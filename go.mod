@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/DavidGamba/go-getoptions v0.20.2
+	github.com/Masterminds/squirrel v1.4.0
 	github.com/cyverse-de/configurate v0.0.0-20200527185205-4e1e92866cee
 	github.com/cyverse-de/dbutil v0.0.0-20200527185309-2b32eb41f45e
 	github.com/cyverse-de/echo-middleware v0.1.0

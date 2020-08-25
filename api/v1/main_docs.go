@@ -84,6 +84,13 @@ type notificationListingParameters struct {
 	//
 	// in:query
 	Offset *uint64 `json:"offset"`
+
+	// If true, only messages that have been marked as seen will be displayed. If false, only messages that have not
+	// been marked as seen will be displayed. If not specified, messages will be displayed regardless of whether or
+	// not they've been marked as seen.
+	//
+	// in:query
+	Seen *bool `json:"seen"`
 }
 
 // Notification Listing

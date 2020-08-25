@@ -61,7 +61,7 @@ func ValidateUIntQueryParam(ctx echo.Context, name string, defaultValue *uint64)
 		}
 	}
 
-	// If no value was provided at this point then the parameter is optional; return teh default value.
+	// If no value was provided at this point then the parameter is optional; return the default value.
 	if value == "" {
 		return *defaultValue, nil
 	}
@@ -72,4 +72,22 @@ func ValidateUIntQueryParam(ctx echo.Context, name string, defaultValue *uint64)
 		return 0, errors.Wrap(err, errMsg)
 	}
 	return result, nil
+}
+
+// ValidateBoolPQueryParam extracts and validates an optional Boolean query parameter.
+func ValidateBoolPQueryParam(ctx echo.Context, name string) (*bool, error) {
+	errMsg := fmt.Sprintf("invalid query parameter: %s", name)
+	value := ctx.QueryParam(name)
+
+	// Simply return nil if there's no value.
+	if value == "" {
+		return nil, nil
+	}
+
+	// Parse the parameter value and return the result.
+	result, err := strconv.ParseBool(value)
+	if err != nil {
+		return nil, errors.Wrap(err, errMsg)
+	}
+	return &result, nil
 }

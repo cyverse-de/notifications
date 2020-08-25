@@ -30,9 +30,17 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 		})
 	}
 
-	// Extract and validate the offset query parameters.
+	// Extract and validate the offset query parameter.
 	defaultOffset := uint64(0)
 	offset, err := query.ValidateUIntQueryParam(ctx, "offset", &defaultOffset)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: err.Error(),
+		})
+	}
+
+	// Extract and validate the seen query parameter.
+	seen, err := query.ValidateBoolPQueryParam(ctx, "seen")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: err.Error(),
@@ -52,6 +60,7 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 		User:   user,
 		Limit:  limit,
 		Offset: offset,
+		Seen:   seen,
 	}
 	listing, err := db.ListNotifications(tx, params)
 	if err != nil {

@@ -39,6 +39,7 @@ type NotificationListingParameters struct {
 	User   string
 	Offset uint64
 	Limit  uint64
+	Seen   *bool
 }
 
 // ListNotifications lists notifications for a user.
@@ -58,6 +59,11 @@ func ListNotifications(tx *sql.Tx, params *NotificationListingParameters) (*mode
 		Join("users u ON n.user_id = u.id").
 		Join("notification_types nt ON n.notification_type_id = nt.id").
 		Where(sq.Eq{"u.username": params.User})
+
+	// Apply the seen parameter if requested.
+	if params.Seen != nil {
+		queryBuilder = queryBuilder.Where(sq.Eq{"seen": *params.Seen})
+	}
 
 	// Apply the limit if requested.
 	if params.Limit != 0 {

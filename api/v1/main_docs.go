@@ -73,41 +73,51 @@ type notificationListingParameters struct {
 	//
 	// in:query
 	// required: true
-	User *string `json:"user"`
+	User string `json:"user"`
 
 	// The maximum number of results to return. If left unspecified or set to zero, there will be no limit to the
 	// number of results returned.
 	//
 	// in:query
 	// default: 0
-	Limit *uint64 `json:"limit"`
+	Limit uint64 `json:"limit"`
 
 	// The index of the first result to return.
 	//
 	// in:query
 	// default: 0
-	Offset *uint64 `json:"offset"`
+	Offset uint64 `json:"offset"`
 
 	// If true, only messages that have been marked as seen will be displayed. If false, only messages that have not
 	// been marked as seen will be displayed. If not specified, messages will be displayed regardless of whether or
 	// not they've been marked as seen.
 	//
 	// in:query
-	Seen *bool `json:"seen"`
+	Seen bool `json:"seen"`
 
 	// The field to use when sorting results.
 	//
 	// in:query
 	// enum: date_created,timestamp,uuid,subject
 	// default: timestamp
-	SortField *string `json:"sort_field"`
+	SortField string `json:"sort_field"`
 
 	// The direction to use when sorting results.
 	//
 	// in:query
 	// enum: asc,desc
 	// default: desc
-	SortDir *string `json:"sort_dir"`
+	SortDir string `json:"sort_dir"`
+
+	// The type of notifications to return in the response or `new`. The value of this query parameter is modified
+	// before searching the database; letters are convered to lower case and spaces are replaced with underscores.
+	// For example, `NOTIFICATION Type` is equivalent to `notification_type`.
+	//
+	// The special value, `new`, will cause the endpoint to list only unseen notifications. This is equivalent to
+	// setting the `seen` query parameter to `false`, and it will override the `seen` query parameter.
+	//
+	// in:query
+	Filter string `json:"filter"`
 }
 
 // Notification Listing

@@ -38,12 +38,13 @@ func formatNotification(
 
 // V1NotificationListingParameters describes the parameters available for listing notifications.
 type V1NotificationListingParameters struct {
-	User      string
-	Offset    uint64
-	Limit     uint64
-	Seen      *bool
-	SortOrder query.SortOrder
-	SortField query.V1ListingSortField
+	User             string
+	Offset           uint64
+	Limit            uint64
+	Seen             *bool
+	SortOrder        query.SortOrder
+	SortField        query.V1ListingSortField
+	NotificationType string
 }
 
 // getNotificationListingSortColumn returns the sort column to use for a V1ListingSortField value.
@@ -80,6 +81,11 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 	// Apply the seen parameter if requested.
 	if params.Seen != nil {
 		queryBuilder = queryBuilder.Where(sq.Eq{"n.seen": *params.Seen})
+	}
+
+	// Apply the notification type parameter if requested.
+	if params.NotificationType != "" {
+		queryBuilder = queryBuilder.Where(sq.Eq{"nt.name": params.NotificationType})
 	}
 
 	// Apply the limit if requested.

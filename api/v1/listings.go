@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/cyverse-de/notifications/db"
 	"github.com/cyverse-de/notifications/model"
@@ -67,6 +68,15 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 		})
 	}
 
+	// Extract and reformat the filter.
+	var notificationType string
+	filter := strings.ReplaceAll(strings.ToLower(ctx.QueryParam("filter")), " ", "_")
+	if filter == "new" {
+		*seen = false
+	} else if filter != "" {
+		notificationType = filter
+	}
+
 	// Start a transaction.
 	tx, err := a.DB.Begin()
 	if err != nil {
@@ -77,12 +87,13 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 
 	// Obtain the listing.
 	params := &db.V1NotificationListingParameters{
-		User:      user,
-		Limit:     limit,
-		Offset:    offset,
-		Seen:      seen,
-		SortOrder: *(sortOrderParam.GetValue().(*query.SortOrder)),
-		SortField: *(sortFieldParam.GetValue().(*query.V1ListingSortField)),
+		User:             user,
+		Limit:            limit,
+		Offset:           offset,
+		Seen:             seen,
+		SortOrder:        *(sortOrderParam.GetValue().(*query.SortOrder)),
+		SortField:        *(sortFieldParam.GetValue().(*query.V1ListingSortField)),
+		NotificationType: notificationType,
 	}
 	listing, err := db.V1ListNotifications(tx, params)
 	if err != nil {

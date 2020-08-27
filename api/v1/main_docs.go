@@ -120,6 +120,28 @@ type notificationListingParameters struct {
 	Filter string `json:"filter"`
 }
 
+// swagger:route GET /v1/unseen_messages v1 listUnseenMessagesV1
+//
+// List Unseen Notification Messages
+//
+// Lists notification messages that have not been marked as seen yet for a user.
+//
+// responses:
+//   200: v1NotificationListing
+//   400: errorResponse
+//   500: errorResponse
+
+// Parameters for the /v1/unseen-messages endpoint.
+// swagger:parameters listUnseenMessagesV1
+type unseenNotificationListingParameters struct {
+
+	// The username of the person to list notifications for.
+	//
+	// in:query
+	// required: true
+	User string `json:"user"`
+}
+
 // Notification Listing
 // swagger:response v1NotificationListing
 type notificationListing struct {

@@ -103,3 +103,44 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, listing)
 }
+
+// GetUnseenMessagesHandler handles requests for listing messages that haven't been marked as seen yet for a
+// user.
+func (a *API) GetUnseenMessagesHandler(ctx echo.Context) error {
+	var err error
+
+	// Extract and validate the user query parameter.
+	user, err := query.ValidatedQueryParam(ctx, "user", "required")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: "missing required query parameter: user",
+		})
+	}
+
+	// Start a transaction.
+	tx, err := a.DB.Begin()
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+	defer tx.Rollback()
+
+	// Obtain the listing.
+	seen := false
+	params := &db.V1NotificationListingParameters{
+		User:             user,
+		Limit:            0,
+		Offset:           0,
+		Seen:             &seen,
+		SortOrder:        query.SortOrderAscending,
+		SortField:        query.V1ListingSortFieldTimestamp,
+		NotificationType: "",
+	}
+	listing, err := db.V1ListNotifications(tx, params)
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+
+	return ctx.JSON(http.StatusOK, listing)
+}

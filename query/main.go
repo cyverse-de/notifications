@@ -91,3 +91,36 @@ func ValidateBoolPQueryParam(ctx echo.Context, name string) (*bool, error) {
 	}
 	return &result, nil
 }
+
+// ParseableParam represents a data type that can be converted to and from a string.
+type ParseableParam interface {
+	FromString(string) error
+	String() string
+	GetValue() interface{}
+	GetDefaultValue() interface{}
+}
+
+// ValidateParseableParam extracts and validates a parseable query parameter.
+func ValidateParseableParam(ctx echo.Context, name string, dest ParseableParam) error {
+	errMsg := fmt.Sprintf("invalid query parameter: %s", name)
+	value := ctx.QueryParam(name)
+
+	// Assume that the parameter is required if there is no default.
+	if dest.GetDefaultValue() == nil {
+		if err := v.Var(value, "required"); err != nil {
+			return fmt.Errorf("missing required query parameter: %s", name)
+		}
+	}
+
+	// If no value was provided at this point then the paraemter is optional; return the default value.
+	if value == "" {
+		return nil
+	}
+
+	// Parse the parameter value and return the result.
+	err := dest.FromString(value)
+	if err != nil {
+		return errors.Wrap(err, errMsg)
+	}
+	return nil
+}

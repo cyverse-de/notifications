@@ -47,6 +47,26 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 		})
 	}
 
+	// Extract and validate the sort_dir query parameter.
+	defaultSortOrder := query.SortOrderDescending
+	sortOrderParam := query.NewSortOrderParam(&defaultSortOrder)
+	err = query.ValidateParseableParam(ctx, "sort_dir", sortOrderParam)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: err.Error(),
+		})
+	}
+
+	// Extract and validate the sort_field query parameter.
+	defaultSortField := query.V1ListingSortFieldTimestamp
+	sortFieldParam := query.NewV1ListingSortFieldParam(&defaultSortField)
+	err = query.ValidateParseableParam(ctx, "sort_field", sortFieldParam)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: err.Error(),
+		})
+	}
+
 	// Start a transaction.
 	tx, err := a.DB.Begin()
 	if err != nil {
@@ -56,13 +76,15 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 	defer tx.Rollback()
 
 	// Obtain the listing.
-	params := &db.NotificationListingParameters{
-		User:   user,
-		Limit:  limit,
-		Offset: offset,
-		Seen:   seen,
+	params := &db.V1NotificationListingParameters{
+		User:      user,
+		Limit:     limit,
+		Offset:    offset,
+		Seen:      seen,
+		SortOrder: *(sortOrderParam.GetValue().(*query.SortOrder)),
+		SortField: *(sortFieldParam.GetValue().(*query.V1ListingSortField)),
 	}
-	listing, err := db.ListNotifications(tx, params)
+	listing, err := db.V1ListNotifications(tx, params)
 	if err != nil {
 		a.Echo.Logger.Error(err)
 		return err

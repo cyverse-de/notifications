@@ -3,8 +3,10 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	"github.com/cyverse-de/notifications/model"
+	"github.com/cyverse-de/notifications/query"
 	"github.com/pkg/errors"
 
 	sq "github.com/Masterminds/squirrel"
@@ -34,16 +36,31 @@ func formatNotification(
 	return &message, nil
 }
 
-// NotificationListingParameters describes the parameters available for listing notifications.
-type NotificationListingParameters struct {
-	User   string
-	Offset uint64
-	Limit  uint64
-	Seen   *bool
+// V1NotificationListingParameters describes the parameters available for listing notifications.
+type V1NotificationListingParameters struct {
+	User      string
+	Offset    uint64
+	Limit     uint64
+	Seen      *bool
+	SortOrder query.SortOrder
+	SortField query.V1ListingSortField
 }
 
-// ListNotifications lists notifications for a user.
-func ListNotifications(tx *sql.Tx, params *NotificationListingParameters) (*model.NotificationListing, error) {
+// getNotificationListingSortColumn returns the sort column to use for a V1ListingSortField value.
+func getV1NotificationListingSortColumn(sortField query.V1ListingSortField) (string, error) {
+	switch sortField {
+	case query.V1ListingSortFieldTimestamp, query.V1ListingSortFieldDateCreated:
+		return "n.time_created", nil
+	case query.V1ListingSortFieldUUID:
+		return "n.id", nil
+	case query.V1ListingSortFieldSubject:
+		return "n.subject", nil
+	}
+	return "", fmt.Errorf("unrecognized sort field: %s", string(sortField))
+}
+
+// V1ListNotifications lists notifications for a user.
+func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*model.NotificationListing, error) {
 	wrapMsg := "unable to obtain the notification listing"
 
 	// Begin building the query.
@@ -62,7 +79,7 @@ func ListNotifications(tx *sql.Tx, params *NotificationListingParameters) (*mode
 
 	// Apply the seen parameter if requested.
 	if params.Seen != nil {
-		queryBuilder = queryBuilder.Where(sq.Eq{"seen": *params.Seen})
+		queryBuilder = queryBuilder.Where(sq.Eq{"n.seen": *params.Seen})
 	}
 
 	// Apply the limit if requested.
@@ -74,6 +91,13 @@ func ListNotifications(tx *sql.Tx, params *NotificationListingParameters) (*mode
 	if params.Offset != 0 {
 		queryBuilder = queryBuilder.Offset(params.Offset)
 	}
+
+	// Apply sorting.
+	sortColumn, err := getV1NotificationListingSortColumn(params.SortField)
+	if err != nil {
+		return nil, errors.Wrap(err, wrapMsg)
+	}
+	queryBuilder = queryBuilder.OrderBy(fmt.Sprintf("%s %s", sortColumn, string(params.SortOrder)))
 
 	// Build the query.
 	query, args, err := queryBuilder.ToSql()

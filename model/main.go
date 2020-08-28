@@ -124,3 +124,11 @@ type NotificationListing struct {
 	// The total number of messages available to be listed.
 	Total int `json:"total"`
 }
+
+// V1NotificationCounts describes the response body for a notification count request in
+// version 1 of the API.
+type V1NotificationCounts struct {
+
+	// The number of messages counted for the user,
+	UserTotal int `json:"user-total"`
+}

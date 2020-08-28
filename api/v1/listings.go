@@ -144,3 +144,49 @@ func (a *API) GetUnseenMessagesHandler(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, listing)
 }
+
+// CountMessagesHandler handles requests for counting notification messages.
+func (a *API) CountMessagesHandler(ctx echo.Context) error {
+	var err error
+
+	// Extract and validate the user query parameter.
+	user, err := query.ValidatedQueryParam(ctx, "user", "required")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: "missing required query parameter: user",
+		})
+	}
+
+	// Extract and validate the seen query parameter.
+	seen, err := query.ValidateBoolPQueryParam(ctx, "seen")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: err.Error(),
+		})
+	}
+
+	// Extract and reformat the notification type filter.
+	notificationType := strings.ReplaceAll(strings.ToLower(ctx.QueryParam("filter")), " ", "_")
+
+	// Start a transaction.
+	tx, err := a.DB.Begin()
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+	defer tx.Rollback()
+
+	// Obtaion the counts.
+	params := &db.V1NotificationCountingParameters{
+		User:             user,
+		Seen:             seen,
+		NotificationType: notificationType,
+	}
+	result, err := db.V1CountNotifications(tx, params)
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+
+	return ctx.JSON(http.StatusOK, result)
+}

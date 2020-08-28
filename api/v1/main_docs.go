@@ -148,3 +148,46 @@ type notificationListing struct {
 	// in:body
 	Body model.NotificationListing
 }
+
+// swagger:route GET /v1/count-messages v1 countMessagesV1
+//
+// Count Notification Messages
+//
+// Returns notification counts for the user.
+//
+// responses:
+//   200: v1NotificationCounts
+//   400: errorResponse
+//   500: errorResponse
+
+// Parameters for the /v1/count-messages endpoint.
+// swagger:parameters countMessagesV1
+type countMessagesV1Parameters struct {
+
+	// The username of the person to count notifications for.
+	//
+	// in:query
+	// required: true
+	User string `json:"user"`
+
+	// If true, only messages that have been marked as seen will be counted. If false, only messages that have not
+	// been marked as seen will be counted. If not specified, messages will be counted regardless of whether or
+	// not they've been marked as seen.
+	//
+	// in:query
+	Seen bool `json:"seen"`
+
+	// The type of notifications to count. The value of this query parameter is modified before executing the database
+	// query; letters are convered to lower case and spaces are replaced with underscores. For example,
+	// `NOTIFICATION Type` is equivalent to `notification_type`.
+	//
+	// in:query
+	Filter string `json:"filter"`
+}
+
+// Notification Count Listing
+// swagger:response v1NotificationCounts
+type v1NotificationCounts struct {
+	// in:body
+	Body model.V1NotificationCounts
+}

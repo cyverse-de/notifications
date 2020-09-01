@@ -41,4 +41,5 @@ func (a API) RegisterHandlers() {
 	a.Group.GET("/messages", a.GetMessagesHandler)
 	a.Group.GET("/unseen-messages", a.GetUnseenMessagesHandler)
 	a.Group.GET("/count-messages", a.CountMessagesHandler)
+	a.Group.POST("/seen", a.MarkMessagesAsSeen)
 }

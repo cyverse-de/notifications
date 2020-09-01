@@ -191,3 +191,38 @@ type v1NotificationCounts struct {
 	// in:body
 	Body model.V1NotificationCounts
 }
+
+// swagger:route POST /v1/seen v1 markMessagesAsSeenV1
+//
+// Mark Messages as Seen
+//
+// This endpoint updates messages in the notifications database to indicate that the user has seen them before.
+//
+// responses:
+//   200: successCount
+//   400: errorResponse
+//   500: errorResponse
+
+// Parameters for the /v1/seen endpoint.
+// swagger:parameters markMessagesAsSeenV1
+type markMessagesAsSeenV1Parameters struct {
+
+	// The username of the person whose notifications are being marked as having been seen.
+	//
+	// in:query
+	// required: true
+	User string `json:"user"`
+
+	// The list of message UUIDs to mark as having been seen.
+	//
+	// in:body
+	// required: true
+	Body model.UUIDList
+}
+
+// Success flag with count.
+// swagger:response successCount
+type successCountResponse struct {
+	// in:body
+	Body model.SuccessCount
+}

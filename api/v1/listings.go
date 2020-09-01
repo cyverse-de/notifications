@@ -176,7 +176,7 @@ func (a *API) CountMessagesHandler(ctx echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	// Obtaion the counts.
+	// Obtain the counts.
 	params := &db.V1NotificationCountingParameters{
 		User:             user,
 		Seen:             seen,

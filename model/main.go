@@ -132,3 +132,20 @@ type V1NotificationCounts struct {
 	// The number of messages counted for the user,
 	UserTotal int `json:"user-total"`
 }
+
+// UUIDList represents a list of UUIDs sent in a request body.
+type UUIDList struct {
+
+	// The list of UUIDs.
+	UUIDs []string `json:"uuids" validate:"dive,required,uuid_rfc4122"`
+}
+
+// SuccessCount describes a response body that returns a success flag and the number of items updated.
+type SuccessCount struct {
+
+	// The success flag.
+	Success bool `json:"success"`
+
+	// The number of items updated.
+	Count int `json:"count"`
+}

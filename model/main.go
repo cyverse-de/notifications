@@ -140,6 +140,13 @@ type UUIDList struct {
 	UUIDs []string `json:"uuids" validate:"dive,required,uuid_rfc4122"`
 }
 
+// UsernameWrapper represents a request body containing only a username.
+type UsernameWrapper struct {
+
+	// The username.
+	User string `json:"user" validate:"required"`
+}
+
 // SuccessCount describes a response body that returns a success flag and the number of items updated.
 type SuccessCount struct {
 

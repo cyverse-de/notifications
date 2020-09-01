@@ -220,6 +220,29 @@ type markMessagesAsSeenV1Parameters struct {
 	Body model.UUIDList
 }
 
+// swagger:route POST /v1/mark-all-seen v1 markAllMessagesAsSeenV1
+//
+// Mark All Messages for a User As Seen
+//
+// This endpoint updates all notifications in the database for the specified user to indicate that the user has seen
+// them before.
+//
+// responses:
+//   200: successCount
+//   400: errorResponse
+//   500: errorResponse
+
+// Parameters for the /v1/mark-all-seen endpoint.
+// swagger:parameters markAllMessagesAsSeenV1
+type markAllMessagesAsSeenV1Parameters struct {
+
+	// A request body containing the username of the person whose messages are being marked as seen.
+	//
+	// in:body
+	// required: true
+	Body model.UsernameWrapper
+}
+
 // Success flag with count.
 // swagger:response successCount
 type successCountResponse struct {

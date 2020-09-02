@@ -198,6 +198,11 @@ type v1NotificationCounts struct {
 //
 // This endpoint updates messages in the notifications database to indicate that the user has seen them before.
 //
+// The response body contains a success flag along with the number of messages that were marked as seen. Messages that
+// have already been marked as seen are included in the count so that callers can compare the number of message IDs
+// in the request to the number of messages affected. If the numbers are different then chances are that some of the
+// message IDs in the request body either don't exist or are directed to a different user.
+//
 // responses:
 //   200: successCount
 //   400: errorResponse
@@ -227,6 +232,9 @@ type markMessagesAsSeenV1Parameters struct {
 // This endpoint updates all notifications in the database for the specified user to indicate that the user has seen
 // them before.
 //
+// The count in the response body indicates the number of messages that were marked as seen. Only messages that
+// previously were not marked as seen are included in this count.
+//
 // responses:
 //   200: successCount
 //   400: errorResponse
@@ -241,6 +249,40 @@ type markAllMessagesAsSeenV1Parameters struct {
 	// in:body
 	// required: true
 	Body model.UsernameWrapper
+}
+
+// swagger:route POST /v1/delete v1 deleteMessagesV1
+//
+// Delete Notification Messages
+//
+// This endpoint marks messages in the database as having been deleted. The user will no longer be able to view the
+// messages after they have been marked as deleted.
+//
+// The response body contains a success flag along with the number of messages that were marked as deleted. Messages
+// that were already marked as deleted are included in the count so that callers can compare the number of message
+// IDs in the request body to the number of messages affected. If the numbers are different then chances are that some
+// of the message IDs in the request body either don't exist or are directed to a different user.
+//
+// responses:
+//   200: successCount
+//   400: errorResponse
+//   500: errorResponse
+
+// Parameters for the /v1/delete endpoint.
+// swagger:parameters DeleteMessagesV1
+type deleteMessagesV1Parameters struct {
+
+	// The username of the person whose notifications are being deleted.
+	//
+	// in:query
+	// required: true
+	User string `json:"user"`
+
+	// The list of message UUIDs to delete.
+	//
+	// in:body
+	// required: true
+	Body model.UUIDList
 }
 
 // Success flag with count.

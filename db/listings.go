@@ -76,7 +76,8 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 		From("notifications n").
 		Join("users u ON n.user_id = u.id").
 		Join("notification_types nt ON n.notification_type_id = nt.id").
-		Where(sq.Eq{"u.username": params.User})
+		Where(sq.Eq{"u.username": params.User}).
+		Where(sq.Eq{"n.deleted": false})
 
 	// Apply the seen parameter if requested.
 	if params.Seen != nil {
@@ -167,7 +168,8 @@ func V1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) 
 		From("notifications n").
 		Join("users u ON n.user_id = u.id").
 		Join("notification_types nt ON n.notification_type_id = nt.id").
-		Where(sq.Eq{"u.username": params.User})
+		Where(sq.Eq{"u.username": params.User}).
+		Where(sq.Eq{"n.deleted": false})
 
 	// Apply the seen parameter if requested.
 	if params.Seen != nil {

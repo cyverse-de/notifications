@@ -127,3 +127,68 @@ func (a *API) MarkAllMessagesAsSeen(ctx echo.Context) error {
 		Success: true,
 	})
 }
+
+// DeleteMessages deletes messages whose UUIDs appear in the request body, provided the messages are directed to the
+// username in the query string.
+func (a *API) DeleteMessages(ctx echo.Context) error {
+	var err error
+
+	// Extract and validate the user query parameter.
+	user, err := query.ValidatedQueryParam(ctx, "user", "required")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: "missing required query parameter: user",
+		})
+	}
+
+	// Extract and validate the request body.
+	uuidList := new(model.UUIDList)
+	if err := ctx.Bind(uuidList); err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.InvalidRequestBody(err))
+	}
+	if err = ctx.Validate(uuidList); err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.InvalidRequestBody(err))
+	}
+
+	// Start a transaction.
+	tx, err := a.DB.Begin()
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+	defer tx.Rollback()
+
+	// Look up the user ID.
+	userID, err := db.GetUserID(tx, user)
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+
+	// No notifications can be deleted if the user isn't in the database.
+	if userID == "" {
+		return ctx.JSON(http.StatusOK, &model.SuccessCount{
+			Success: true,
+			Count:   0,
+		})
+	}
+
+	// Delete the notifications.
+	count, err := db.DeleteMessages(tx, userID, uuidList.UUIDs)
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+
+	// Commit the transaction.
+	err = tx.Commit()
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+
+	return ctx.JSON(http.StatusOK, &model.SuccessCount{
+		Success: true,
+		Count:   count,
+	})
+}

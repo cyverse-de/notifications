@@ -72,3 +72,36 @@ func MarkAllMessagesAsSeen(tx *sql.Tx, userID string) (int, error) {
 
 	return int(count), nil
 }
+
+// DeleteMessages takes a list of UUIDs and deletes the corresponding messages in the database if they exist and were
+// targeted to the user with the given user ID. A count of the number of messages that were eligible to be updated
+// (even if some messages had already been deleted) is returned.
+func DeleteMessages(tx *sql.Tx, userID string, uuids []string) (int, error) {
+	wrapMsg := "unable to delete messages"
+
+	// Build the SQL statement.
+	statement, args, err := sq.StatementBuilder.
+		PlaceholderFormat(sq.Dollar).
+		Update("notifications").
+		Set("deleted", true).
+		Where(sq.Eq{"user_id": userID}).
+		Where(sq.Eq{"id": uuids}).
+		ToSql()
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	// Execute the SQL statement.
+	result, err := tx.Exec(statement, args...)
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	// Determine how many rows were affected. We require any DBMS that we use to support this.
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	return int(count), nil
+}

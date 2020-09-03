@@ -72,6 +72,7 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 	var notificationType string
 	filter := strings.ReplaceAll(strings.ToLower(ctx.QueryParam("filter")), " ", "_")
 	if filter == "new" {
+		seen = new(bool)
 		*seen = false
 	} else if filter != "" {
 		notificationType = filter

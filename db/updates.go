@@ -105,3 +105,55 @@ func DeleteMessages(tx *sql.Tx, userID string, uuids []string) (int, error) {
 
 	return int(count), nil
 }
+
+// DeleteMatchingMessagesParameters represents the parameters that may be specified when deleting messages matching a
+// set of filters.
+type DeleteMatchingMessagesParameters struct {
+	Seen               *bool
+	NotificationTypeID string
+}
+
+// DeleteMatchingMessages deletes matching messages in the database.
+func DeleteMatchingMessages(tx *sql.Tx, userID string, params *DeleteMatchingMessagesParameters) (int, error) {
+	wrapMsg := "unable to delete matching messages"
+
+	// Begin building the sql statement. Having both `Set("deleted", true)` and `Where(Sq.Eq{"deleted", false})`
+	// produced an error saying that the incorrect number of arguments was given for the query. Changing the code
+	// adding the WHERE clause to `Where("not deleted")` fixed the problem.
+	queryBuilder := sq.StatementBuilder.
+		PlaceholderFormat(sq.Dollar).
+		Update("notifications").
+		Set("deleted", true).
+		Where("not deleted").
+		Where(sq.Eq{"user_id": userID})
+
+	// Apply the seen parameter if requested.
+	if params.Seen != nil {
+		queryBuilder = queryBuilder.Where(sq.Eq{"seen": *params.Seen})
+	}
+
+	// Apply the notification type parameter if requested.
+	if params.NotificationTypeID != "" {
+		queryBuilder = queryBuilder.Where(sq.Eq{"notification_type_id": params.NotificationTypeID})
+	}
+
+	// Generate the SQL statement.
+	statement, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	// Execute the SQL statement.
+	result, err := tx.Exec(statement, args...)
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	// Determine how many rows were affected. We require any DBMS that we use to support this.
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	return int(count), nil
+}

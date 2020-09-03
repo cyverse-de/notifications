@@ -269,7 +269,7 @@ type markAllMessagesAsSeenV1Parameters struct {
 //   500: errorResponse
 
 // Parameters for the /v1/delete endpoint.
-// swagger:parameters DeleteMessagesV1
+// swagger:parameters deleteMessagesV1
 type deleteMessagesV1Parameters struct {
 
 	// The username of the person whose notifications are being deleted.
@@ -283,6 +283,39 @@ type deleteMessagesV1Parameters struct {
 	// in:body
 	// required: true
 	Body model.UUIDList
+}
+
+// swagger:route DELETE /v1/delete-all v1 deleteMatchingMessagesV1
+//
+// Delete Matching Notification Messages
+//
+// This endpoint deletes messages that match conditions in the search criteria passed in the query parameters.
+//
+// The response body contains a success flag along with the number of messages that were marked as deleted. Any
+// messages that were already marked as deleted will not be included in the count.
+//
+// responses:
+//   200: successCount
+//   400: errorResponse
+//   500: errorResponse
+
+// Parameters for the /v1/delete-all endpoint.
+// swagger:parameters deleteMatchingMessagesV1
+type deleteMatchingMessagesV1Parameters struct {
+
+	// the username of the person whose notifications are being deleted.
+	//
+	// in:query
+	// required: true
+	User string `json:"user"`
+
+	// The type of notifications to delete or `new`. The value of this query parameter is modified before updating
+	// the database; letters are convered to lower case and spaces are replaced with underscores. For example,
+	// `NOTIFICATION Type` is equivalent to `notification_type`. The special value, `new`, can be used to indicate
+	// that messages of any type that have not been marked as seen should be deleted.
+	//
+	// in:query
+	Filter string `json:"filter"`
 }
 
 // Success flag with count.

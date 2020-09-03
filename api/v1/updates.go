@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/cyverse-de/notifications/db"
 	"github.com/cyverse-de/notifications/model"
@@ -175,6 +176,94 @@ func (a *API) DeleteMessages(ctx echo.Context) error {
 
 	// Delete the notifications.
 	count, err := db.DeleteMessages(tx, userID, uuidList.UUIDs)
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+
+	// Commit the transaction.
+	err = tx.Commit()
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+
+	return ctx.JSON(http.StatusOK, &model.SuccessCount{
+		Success: true,
+		Count:   count,
+	})
+}
+
+// DeleteMatchingMessages deletes messages that match the filters passed in the query string.
+func (a *API) DeleteMatchingMessages(ctx echo.Context) error {
+	var err error
+	var seen *bool
+
+	// Extract and validate the user query parameter.
+	user, err := query.ValidatedQueryParam(ctx, "user", "required")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: "missing required query parameter: user",
+		})
+	}
+
+	// Extract and reformat the filter.
+	var notificationType string
+	filter := strings.ReplaceAll(strings.ToLower(ctx.QueryParam("filter")), " ", "_")
+	if filter == "new" {
+		seen = new(bool)
+		*seen = false
+	} else if filter != "" {
+		notificationType = filter
+	}
+
+	// Begin a database transaction.
+	tx, err := a.DB.Begin()
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+	defer tx.Rollback()
+
+	// Look up the user ID.
+	userID, err := db.GetUserID(tx, user)
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+
+	// No notifications can be deleted if the user isn't in the database.
+	if userID == "" {
+		return ctx.JSON(http.StatusOK, &model.SuccessCount{
+			Success: true,
+			Count:   0,
+		})
+	}
+
+	// Look up the notification type ID if the notification type was specified.
+	var notificationTypeID string
+	if notificationType != "" {
+		notificationTypeID, err = db.GetNotificationTypeID(tx, notificationType)
+		if err != nil {
+			a.Echo.Logger.Error(err)
+			return err
+		}
+
+		// no notifications can be deleted if the notificaiton type was specified but not found.
+		if notificationTypeID == "" {
+			return ctx.JSON(http.StatusOK, &model.SuccessCount{
+				Success: true,
+				Count:   0,
+			})
+		}
+	}
+
+	// Delete matching notifications.
+	params := &db.DeleteMatchingMessagesParameters{
+		Seen:               seen,
+		NotificationTypeID: notificationTypeID,
+	}
+	count, err := db.DeleteMatchingMessages(tx, userID, params)
 	if err != nil {
 		a.Echo.Logger.Error(err)
 		return err

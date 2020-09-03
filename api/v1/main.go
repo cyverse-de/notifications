@@ -44,4 +44,5 @@ func (a API) RegisterHandlers() {
 	a.Group.POST("/seen", a.MarkMessagesAsSeen)
 	a.Group.POST("/mark-all-seen", a.MarkAllMessagesAsSeen)
 	a.Group.POST("/delete", a.DeleteMessages)
+	a.Group.DELETE("/delete-all", a.DeleteMatchingMessages)
 }

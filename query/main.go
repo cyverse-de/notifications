@@ -74,6 +74,29 @@ func ValidateUIntQueryParam(ctx echo.Context, name string, defaultValue *uint64)
 	return result, nil
 }
 
+// ValidateUUIDQueryParam extracts a UUID query parameter and validates it.
+func ValidateUUIDQueryParam(ctx echo.Context, name string, required bool) (string, error) {
+	errMsg := fmt.Sprintf("invalid query parameter: %s", name)
+	value := ctx.QueryParam(name)
+
+	// Make sure that the query parameter is present if it's required.
+	if required {
+		if err := v.Var(value, "required"); err != nil {
+			return "", fmt.Errorf("missing required query parameters: %s", name)
+		}
+	}
+
+	// Make sure that the query parameter format is correct if it's specified
+	if value != "" {
+		if err := v.Var(value, "uuid_rfc4122"); err != nil {
+			return "", errors.Wrap(err, errMsg)
+		}
+
+	}
+
+	return value, nil
+}
+
 // ValidateBoolPQueryParam extracts and validates an optional Boolean query parameter.
 func ValidateBoolPQueryParam(ctx echo.Context, name string) (*bool, error) {
 	errMsg := fmt.Sprintf("invalid query parameter: %s", name)

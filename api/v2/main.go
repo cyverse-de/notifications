@@ -37,4 +37,5 @@ func (a API) RootHandler(ctx echo.Context) error {
 func (a API) RegisterHandlers() {
 	a.Group.GET("", a.RootHandler)
 	a.Group.GET("/", a.RootHandler)
+	a.Group.GET("/messages", a.GetMessagesHandler)
 }

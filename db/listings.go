@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/cyverse-de/notifications/model"
 	"github.com/cyverse-de/notifications/query"
@@ -34,6 +35,42 @@ func formatNotification(
 	message.Deleted = deleted
 
 	return &message, nil
+}
+
+// notificationListingFromRows converts rows from a notification listing query to a structure that can be formatted
+// as a JSON response body.
+func notificationListingFromRows(rows *sql.Rows) (*model.NotificationListing, error) {
+	wrapMsg := "unable to format the notification listing"
+	var total int
+	var err error
+
+	// Build the listing.
+	listing := make([]*model.Notification, 0)
+	for rows.Next() {
+		var notificationType string
+		var messageText []byte
+		var seen, deleted bool
+
+		// Fetch the data for the current row from the database.
+		err = rows.Scan(&notificationType, &seen, &deleted, &messageText, &total)
+		if err != nil {
+			return nil, errors.Wrap(err, wrapMsg)
+		}
+
+		// Unmarshal the message and plug in any values that might have changed.
+		message, err := formatNotification(messageText, notificationType, seen, deleted)
+		if err != nil {
+			return nil, errors.Wrap(err, wrapMsg)
+		}
+
+		listing = append(listing, message)
+	}
+
+	result := &model.NotificationListing{
+		Messages: listing,
+		Total:    total,
+	}
+	return result, nil
 }
 
 // V1NotificationListingParameters describes the parameters available for listing notifications.
@@ -90,7 +127,7 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 	}
 
 	// Apply the limit if requested.
-	if params.Limit != 0 {
+	if params.Limit > 0 {
 		queryBuilder = queryBuilder.Limit(params.Limit)
 	}
 
@@ -120,33 +157,8 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 	defer rows.Close()
 
 	// Build the listing from the result set.
-	var total int
-	listing := make([]*model.Notification, 0)
-	for rows.Next() {
-		var notificationType string
-		var messageText []byte
-		var seen, deleted bool
-
-		// Fetch the data for the current row from the database.
-		err = rows.Scan(&notificationType, &seen, &deleted, &messageText, &total)
-		if err != nil {
-			return nil, errors.Wrap(err, wrapMsg)
-		}
-
-		// Unmarshal the message and plug in any values that might have changed.
-		message, err := formatNotification(messageText, notificationType, seen, deleted)
-		if err != nil {
-			return nil, errors.Wrap(err, wrapMsg)
-		}
-
-		listing = append(listing, message)
-	}
-
-	result := &model.NotificationListing{
-		Messages: listing,
-		Total:    total,
-	}
-	return result, nil
+	// TODO: figure out what we should do with message counts.
+	return notificationListingFromRows(rows)
 }
 
 // V1NotificationCountingParameters describes the parameters available for counting notification messages.
@@ -156,7 +168,7 @@ type V1NotificationCountingParameters struct {
 	NotificationType string
 }
 
-// V1CountNotifications counts for a user.
+// V1CountNotifications counts notifications for a user.
 func V1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) (*model.V1NotificationCounts, error) {
 	wrapMsg := "unable to obtain the notification counts"
 
@@ -196,4 +208,72 @@ func V1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) 
 	}
 
 	return result, nil
+}
+
+// V2NotificationListingParameters describes the parameters available for listing notifications.
+type V2NotificationListingParameters struct {
+	User            string
+	Limit           uint64
+	Seen            bool
+	SortOrder       query.SortOrder
+	BeforeTimestamp *time.Time
+	AfterTimestamp  *time.Time
+}
+
+// V2ListNotifications lists notifications for a user.
+func V2ListNotifications(tx *sql.Tx, params *V2NotificationListingParameters) (*model.NotificationListing, error) {
+	wrapMsg := "unable to obtain the notification listing"
+
+	// Begin building the query.
+	queryBuilder := sq.StatementBuilder.
+		PlaceholderFormat(sq.Dollar).
+		Select().
+		Column("nt.name AS type").
+		Column("n.seen").
+		Column("n.deleted").
+		Column("n.outgoing_json AS message").
+		Column("count(*) OVER () AS total").
+		From("notifications n").
+		Join("users u ON n.user_id = u.id").
+		Join("notification_types nt ON n.notification_type_id = nt.id").
+		Where(sq.Eq{"u.username": params.User}).
+		Where(sq.Eq{"n.deleted": false})
+
+	// Apply the seen parameter if the user didn't request to see messages that have been marked as seen.
+	if !params.Seen {
+		queryBuilder = queryBuilder.Where(sq.Eq{"n.seen": false})
+	}
+
+	// Apply the before timestamp parameter if requested.
+	if params.BeforeTimestamp != nil {
+		queryBuilder = queryBuilder.Where(sq.LtOrEq{"n.time_created": *params.BeforeTimestamp})
+	}
+
+	// Apply the after timestamp parameter if requested.
+	if params.AfterTimestamp != nil {
+		queryBuilder = queryBuilder.Where(sq.GtOrEq{"n.time_created": *params.AfterTimestamp})
+	}
+
+	// Apply the limit parameter if a limit was specified.
+	if params.Limit > 0 {
+		queryBuilder = queryBuilder.Limit(params.Limit)
+	}
+
+	// Apply the sort order.
+	queryBuilder = queryBuilder.OrderBy(fmt.Sprintf("n.time_created %s", string(params.SortOrder)))
+
+	// Build the query and query the database.
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return nil, errors.Wrap(err, wrapMsg)
+	}
+	rows, err := tx.Query(query, args...)
+	if err != nil {
+		return nil, errors.Wrap(err, wrapMsg)
+	}
+	defer rows.Close()
+
+	// Build the listing from the result set.
+	// TODO: figure out what we should do with message counts.
+	return notificationListingFromRows(rows)
 }

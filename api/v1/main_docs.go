@@ -67,7 +67,7 @@ type requestNotificationParameters struct {
 
 // Parameters for the /v1/messages endpoint.
 // swagger:parameters listMessagesV1
-type notificationListingParameters struct {
+type notificationListingParametersV1 struct {
 
 	// The username of the person to list notifications for.
 	//
@@ -144,7 +144,7 @@ type unseenNotificationListingParameters struct {
 
 // Notification Listing
 // swagger:response v1NotificationListing
-type notificationListing struct {
+type notificationListingV1 struct {
 	// in:body
 	Body model.NotificationListing
 }

@@ -229,6 +229,9 @@ type V2NotificationListingParameters struct {
 	// message timestamp might as well be retrieved at the same time.
 	AfterID        string
 	AfterTimestamp *time.Time
+
+	// If true, only the notification counts will be returned.
+	CountOnly bool
 }
 
 // v2ListNotificationsBaseQuery builds the base query for notification listings in version 2 of the API.
@@ -528,11 +531,15 @@ func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (stri
 // V2ListNotifications lists notifications for a user.
 func V2ListNotifications(tx *sql.Tx, params *V2NotificationListingParameters) (*model.V2NotificationListing, error) {
 	wrapMsg := "unable to obtain the notification listing"
+	var err error
 
 	// Obtain the listing.
-	listing, err := v2GetListing(tx, params)
-	if err != nil {
-		return nil, errors.Wrap(err, wrapMsg)
+	var listing []*model.Notification
+	if !params.CountOnly {
+		listing, err = v2GetListing(tx, params)
+		if err != nil {
+			return nil, errors.Wrap(err, wrapMsg)
+		}
 	}
 
 	// Obtain the count.
@@ -542,9 +549,12 @@ func V2ListNotifications(tx *sql.Tx, params *V2NotificationListingParameters) (*
 	}
 
 	// Get the boundary IDs.
-	beforeID, afterID, err := v2GetBoundaryIDs(tx, params)
-	if err != nil {
-		return nil, errors.Wrap(err, wrapMsg)
+	var beforeID, afterID string
+	if !params.CountOnly {
+		beforeID, afterID, err = v2GetBoundaryIDs(tx, params)
+		if err != nil {
+			return nil, errors.Wrap(err, wrapMsg)
+		}
 	}
 
 	result := &model.V2NotificationListing{

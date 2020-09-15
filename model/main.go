@@ -129,7 +129,7 @@ type V1NotificationListing struct {
 type V2NotificationListing struct {
 
 	// The message listing.
-	Messages []*Notification `json:"messages"`
+	Messages []*Notification `json:"messages,omitempty"`
 
 	// The total number of messages available to be listed.
 	Total int `json:"total"`

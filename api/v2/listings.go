@@ -59,28 +59,8 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 		})
 	}
 
-	// Extract and validate the before query parameter.
-	var defaultBefore time.Time
-	beforeParam := query.NewTimestampParam(&defaultBefore)
-	err = query.ValidateParseableParam(ctx, "before", beforeParam)
-	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
-			Message: err.Error(),
-		})
-	}
-
 	// Extract and validate the after-id query parameter.
 	afterID, err := query.ValidateUUIDQueryParam(ctx, "after-id", false)
-	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
-			Message: err.Error(),
-		})
-	}
-
-	// Extract and validate the after query parameter.
-	var defaultAfter time.Time
-	afterParam := query.NewTimestampParam(&defaultAfter)
-	err = query.ValidateParseableParam(ctx, "after", afterParam)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: err.Error(),
@@ -108,11 +88,6 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 				Message: fmt.Sprintf("message %s does not exist", beforeID),
 			})
 		}
-	} else {
-		beforeTimestamp = beforeParam.GetValue().(*time.Time)
-		if *beforeTimestamp == defaultBefore {
-			beforeTimestamp = nil
-		}
 	}
 
 	// Determine the after timestamp for the request.
@@ -128,11 +103,6 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 				Message: fmt.Sprintf("message %s does not exist", afterID),
 			})
 		}
-	} else {
-		afterTimestamp = afterParam.GetValue().(*time.Time)
-		if *afterTimestamp == defaultAfter {
-			afterTimestamp = nil
-		}
 	}
 
 	// Obtain the listing.
@@ -141,7 +111,9 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 		Limit:           limit,
 		Seen:            seen,
 		SortOrder:       *(sortOrderParam.GetValue().(*query.SortOrder)),
+		BeforeID:        beforeID,
 		BeforeTimestamp: beforeTimestamp,
+		AfterID:         afterID,
 		AfterTimestamp:  afterTimestamp,
 	}
 	listing, err := db.V2ListNotifications(tx, params)
@@ -150,6 +122,8 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 		return err
 	}
 
-	// TODO: add filtering based on the beforeID an afterID parameters.
-	return ctx.JSON(http.StatusOK, listing)
+	return ctx.JSON(
+		http.StatusOK,
+		listing,
+	)
 }

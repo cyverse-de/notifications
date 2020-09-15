@@ -115,8 +115,8 @@ type Notification struct {
 	User string `json:"user"`
 }
 
-// NotificationListing describes the response body to a notification listing request.
-type NotificationListing struct {
+// V1NotificationListing describes the response body to a notification listing request in version 1 of the API.
+type V1NotificationListing struct {
 
 	// The message listing.
 	Messages []*Notification `json:"messages"`
@@ -125,8 +125,23 @@ type NotificationListing struct {
 	Total int `json:"total"`
 }
 
-// V1NotificationCounts describes the response body for a notification count request in
-// version 1 of the API.
+// V2NotificationListing describes the response body to a notification listing request in version 2 of the API.
+type V2NotificationListing struct {
+
+	// The message listing.
+	Messages []*Notification `json:"messages"`
+
+	// The total number of messages available to be listed.
+	Total int `json:"total"`
+
+	// The ID of the most recent messsage that preceded all of the messages in the current listing page.
+	BeforeID string `json:"before-id,omitempty"`
+
+	// The ID of the oldest message that succeeded the all of the messages in the current listing page.
+	AfterID string `json:"after-id,omitempty"`
+}
+
+// V1NotificationCounts describes the response body for a notification count request in version 1 of the API.
 type V1NotificationCounts struct {
 
 	// The number of messages counted for the user,

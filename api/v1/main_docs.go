@@ -146,7 +146,7 @@ type unseenNotificationListingParameters struct {
 // swagger:response v1NotificationListing
 type notificationListingV1 struct {
 	// in:body
-	Body model.NotificationListing
+	Body model.V1NotificationListing
 }
 
 // swagger:route GET /v1/count-messages v1 countMessagesV1

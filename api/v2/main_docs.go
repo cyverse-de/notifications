@@ -37,7 +37,14 @@ type rootResponseWrapper struct {
 //
 // List Notification Messages
 //
-// This endpoint lists notifications that match the criteria specified in the query parameters.
+// This endpoint lists notifications that match the criteria specified in the query parameters. Notifications are
+// always sorted by timestamp.
+//
+// Paging is managed using two query parameters. The `before-id` query parameter indicates that only messages that
+// were created after the message with the given ID should be listed. Similarly, the `after-id` query parameter
+// indicates that only messages that were created after the message with the given ID should be listed. These two
+// parameters are intended to be used exclusively for paging. They cannot be used together to list messages that were
+// created within a specific time window.
 //
 // responses:
 //   200: v2NotificationListing
@@ -76,27 +83,17 @@ type notificationListingParametersV2 struct {
 
 	// If specified, only messages created before the message with the given ID will be returned.
 	//
+	// Note: `before-id` may not be used in conjunction with `after-id` to list messages created within a time window.
+	//
 	// in:query
 	BeforeID string `json:"before-id"`
 
 	// If specified, only messages created after the message with the given ID will be returned.
 	//
+	// Note: `after-id` may not be used in conjunction with `before-id` to list messages created within a time window.
+	//
 	// in:query
 	AfterID string `json:"after-id"`
-
-	// If specified, only messages created before the given timestamp will be returned. The timestamp should be in
-	// RFC-3339 format with optional nanosecond precision. If both `before` and `before-id` are specified, `before-id`
-	// takes precedence.
-	//
-	// in:query
-	Before string `json:"before"`
-
-	// If specified, only messages created after the given timestamp will be returned. The timestamp should be in
-	// RFC-3339 format with optional nanosecond precision. If both `after` and `after-id` are specified, `after-id`
-	// takes precedence.
-	//
-	// in:querhy
-	After string `json:"after"`
 
 	// If true, only the number of matching messages will be returned.
 	//
@@ -119,5 +116,5 @@ type notificationListingParametersV2 struct {
 // swagger:response v2NotificationListing
 type notificationListingV2 struct {
 	// in:body
-	Body model.NotificationListing
+	Body model.V2NotificationListing
 }

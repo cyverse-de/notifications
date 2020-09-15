@@ -135,10 +135,10 @@ type V2NotificationListing struct {
 	Total int `json:"total"`
 
 	// The ID of the most recent messsage that preceded all of the messages in the current listing page.
-	BeforeID string `json:"before-id,omitempty"`
+	BeforeID string `json:"before_id,omitempty"`
 
 	// The ID of the oldest message that succeeded the all of the messages in the current listing page.
-	AfterID string `json:"after-id,omitempty"`
+	AfterID string `json:"after_id,omitempty"`
 }
 
 // V1NotificationCounts describes the response body for a notification count request in version 1 of the API.

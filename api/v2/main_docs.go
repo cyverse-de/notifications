@@ -38,7 +38,7 @@ type rootResponseWrapper struct {
 // List Notification Messages
 //
 // This endpoint lists notifications that match the criteria specified in the query parameters. Notifications are
-// always sorted by timestamp.
+// always sorted by timestamp then by ID.
 //
 // Paging is managed using two query parameters. The `before-id` query parameter indicates that only messages that
 // were created after the message with the given ID should be listed. Similarly, the `after-id` query parameter

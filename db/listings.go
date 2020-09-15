@@ -253,9 +253,11 @@ func v2ListNotificationsBaseQuery(params *V2NotificationListingParameters) sq.Se
 }
 
 // v2AddPaginationSettings adds pagination settings to a notification listing query for version 2 of the API.
-func v2AddPaginationSettings(listingQueryBuilder sq.SelectBuilder, params *V2NotificationListingParameters) (
-	sq.SelectBuilder, error,
-) {
+func v2AddPaginationSettings(
+	listingQueryBuilder sq.SelectBuilder,
+	params *V2NotificationListingParameters,
+) (sq.SelectBuilder, error) {
+
 	// Add the parameters to get to the correct page.
 	if params.BeforeID != "" {
 		if params.BeforeTimestamp == nil {
@@ -274,18 +276,12 @@ func v2AddPaginationSettings(listingQueryBuilder sq.SelectBuilder, params *V2Not
 			Where(sq.GtOrEq{"n.time_created": *params.AfterTimestamp})
 	}
 
-	// Add the sort order so that we can be sure to get the right results.
-	innerSortOrder := params.SortOrder
-	if params.AfterTimestamp != nil {
-		innerSortOrder = query.SortOrderAscending
-	} else if params.BeforeTimestamp != nil {
-		innerSortOrder = query.SortOrderDescending
-	}
-	listingQueryBuilder = listingQueryBuilder.OrderBy(
-		fmt.Sprintf("n.time_created %s, n.id %s", innerSortOrder, innerSortOrder),
-	)
-
 	return listingQueryBuilder, nil
+}
+
+// v2ApplySortOrder applies the sort order to a notification listing for version 2 of the API.
+func v2ApplySortOrder(queryBuilder sq.SelectBuilder, sortOrder query.SortOrder) sq.SelectBuilder {
+	return queryBuilder.OrderBy(fmt.Sprintf("n.time_created %s, n.id %s", sortOrder, sortOrder))
 }
 
 // v2GetListing returns an acutal notification listing for version 2 of the API.
@@ -305,6 +301,15 @@ func v2GetListing(tx *sql.Tx, params *V2NotificationListingParameters) ([]*model
 	if err != nil {
 		return nil, err
 	}
+
+	// Sort the inner query based on the
+	innerSortOrder := params.SortOrder
+	if params.AfterTimestamp != nil {
+		innerSortOrder = query.SortOrderAscending
+	} else if params.BeforeTimestamp != nil {
+		innerSortOrder = query.SortOrderDescending
+	}
+	listingQueryBuilder = v2ApplySortOrder(listingQueryBuilder, innerSortOrder)
 
 	// Apply the limit.
 	if params.Limit > 0 {
@@ -373,33 +378,11 @@ func v2GetNotificationCount(tx *sql.Tx, params *V2NotificationListingParameters)
 	return total, nil
 }
 
-// v2GetNextBeforeID obtains the ID of the most recent message that precedes all messages on the current page.
-func v2GetNextBeforeID(tx *sql.Tx, params *V2NotificationListingParameters) (string, error) {
-
-	// If the before ID was specified then we can simply return it.
-	if params.BeforeID != "" {
-		return params.BeforeID, nil
-	}
-
-	// If there's no limit and the before ID was not specified in the request then there can't be a new before ID.
-	if params.Limit == 0 {
-		return "", nil
-	}
-
-	// If the sort order is descending and no before ID was specified then we're on the first page.
-	if params.SortOrder == query.SortOrderDescending {
-		return "", nil
-	}
-
-	// We've accounted for the simple cases; we'll need to use a query to get the before ID.
-	queryBuilder := v2ListNotificationsBaseQuery(params).Column("n.id")
-	queryBuilder, err := v2AddPaginationSettings(queryBuilder, params)
-	if err != nil {
-		return "", err
-	}
-
-	// Apply the offset and limit.
-	queryBuilder = queryBuilder.Offset(params.Limit).Limit(1)
+// runBoundaryIDQuery runs a single boundary ID query and returns the result.
+func runBoundaryIDQuery(
+	tx *sql.Tx,
+	queryBuilder sq.SelectBuilder,
+) (string, error) {
 
 	// Build the query.
 	query, args, err := queryBuilder.ToSql()
@@ -407,58 +390,139 @@ func v2GetNextBeforeID(tx *sql.Tx, params *V2NotificationListingParameters) (str
 		return "", err
 	}
 
-	// Get the identifier.
-	var id string
-	err = tx.QueryRow(query, args...).Scan(&id)
+	// Execute the query.
+	rows, err := tx.Query(query, args...)
 	if err != nil {
 		return "", err
 	}
+	defer rows.Close()
 
-	return id, err
+	// Get the ID of the next message if applicable.
+	var id string
+	if rows.Next() {
+		err = rows.Scan(&id)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return id, nil
 }
 
-// v2GetNextAfterID obtains the ID of the oldest message that succeeds all messages on the current page.
-func v2GetNextAfterID(tx *sql.Tx, params *V2NotificationListingParameters) (string, error) {
+// v2GetBoundaryIDs obtains the IDs of the messages just beyond the boundaries of the current page.
+func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (string, string, error) {
+	var beforeID, afterID string
+	var err error
 
-	// If the after ID was specified then we can simply return it.
-	if params.AfterID != "" {
-		return params.AfterID, nil
-	}
-
-	// If there's no limit and the after ID was not specified in the request then there can't be a new after ID.
-	if params.Limit == 0 {
-		return "", nil
-	}
-
-	// If the sort order is ascending and no after ID was specified then we're on the first page.
-	if params.SortOrder == query.SortOrderAscending {
-		return "", nil
-	}
-
-	// We've accounted for the simple cases; we'll need to use a query to get the after ID.
+	// Begin building the query.
 	queryBuilder := v2ListNotificationsBaseQuery(params).Column("n.id")
-	queryBuilder, err := v2AddPaginationSettings(queryBuilder, params)
-	if err != nil {
-		return "", err
+
+	// Handle the case where the before ID was specified.
+	if params.BeforeID != "" {
+		if params.Limit > 0 {
+			beforeID, err = runBoundaryIDQuery(
+				tx,
+				v2ApplySortOrder(queryBuilder, query.SortOrderDescending).
+					Where(sq.LtOrEq{"n.id": params.BeforeID}).
+					Where(sq.LtOrEq{"n.time_created": params.BeforeTimestamp}).
+					Offset(params.Limit).
+					Limit(1),
+			)
+			if err != nil {
+				return "", "", err
+			}
+		}
+
+		afterID, err = runBoundaryIDQuery(
+			tx,
+			v2ApplySortOrder(queryBuilder, query.SortOrderAscending).
+				Where(sq.GtOrEq{"n.id": params.BeforeID}).
+				Where(sq.GtOrEq{"n.time_created": params.BeforeTimestamp}).
+				Offset(1).
+				Limit(1),
+		)
+		if err != nil {
+			return "", "", err
+		}
+
+		return beforeID, afterID, nil
 	}
 
-	// Apply the offset and limit.
-	queryBuilder = queryBuilder.Offset(params.Limit).Limit(1)
+	// Handle the case where the after ID was specified.
+	if params.AfterID != "" {
+		if params.Limit > 0 {
+			afterID, err = runBoundaryIDQuery(
+				tx,
+				v2ApplySortOrder(queryBuilder, query.SortOrderAscending).
+					Where(sq.GtOrEq{"n.id": params.AfterID}).
+					Where(sq.GtOrEq{"n.time_created": params.AfterTimestamp}).
+					Offset(params.Limit).
+					Limit(1),
+			)
+			if err != nil {
+				return "", "", err
+			}
+		}
 
-	// Build the query.
-	query, args, err := queryBuilder.ToSql()
-	if err != nil {
-		return "", err
+		beforeID, err = runBoundaryIDQuery(
+			tx,
+			v2ApplySortOrder(queryBuilder, query.SortOrderDescending).
+				Where(sq.LtOrEq{"n.id": params.AfterID}).
+				Where(sq.LtOrEq{"n.time_created": params.AfterTimestamp}).
+				Offset(1).
+				Limit(1),
+		)
+		if err != nil {
+			return "", "", err
+		}
+
+		return beforeID, afterID, nil
 	}
 
-	// Get the identifier.
-	var id string
-	err = tx.QueryRow(query, args...).Scan(&id)
-	if err != nil {
-		return "", err
+	// Handle the case where no boundary ID was specified and the sort order is ascending.
+	if params.SortOrder == query.SortOrderAscending {
+		beforeID = ""
+
+		if params.Limit > 0 {
+			afterID, err = runBoundaryIDQuery(
+				tx,
+				v2ApplySortOrder(queryBuilder, query.SortOrderAscending).
+					Offset(params.Limit).
+					Limit(1),
+			)
+			if err != nil {
+				return "", "", err
+			}
+		} else {
+			afterID = ""
+		}
+
+		return beforeID, afterID, nil
 	}
 
-	return id, err
+	// Handle the case where no boundary ID was specified and the sort order is descending.
+	if params.SortOrder == query.SortOrderDescending {
+		afterID = ""
+
+		if params.Limit > 0 {
+			beforeID, err = runBoundaryIDQuery(
+				tx,
+				v2ApplySortOrder(queryBuilder, query.SortOrderDescending).
+					Offset(params.Limit).
+					Limit(1),
+			)
+			if err != nil {
+				return "", "", err
+			}
+		} else {
+			beforeID = ""
+		}
+
+		return beforeID, afterID, nil
+	}
+
+	// If execution get to this point, we have problems.
+	return "", "", fmt.Errorf("unexpected condition encountered while obtaining boundary IDs")
 }
 
 // V2ListNotifications lists notifications for a user.
@@ -477,14 +541,8 @@ func V2ListNotifications(tx *sql.Tx, params *V2NotificationListingParameters) (*
 		return nil, errors.Wrap(err, wrapMsg)
 	}
 
-	// Obtain the ID of the most recent message that precedes all messages on the current page.
-	beforeID, err := v2GetNextBeforeID(tx, params)
-	if err != nil {
-		return nil, errors.Wrap(err, wrapMsg)
-	}
-
-	// Obtain the ID of the oldest message that succeeds all messages on the current page.
-	afterID, err := v2GetNextAfterID(tx, params)
+	// Get the boundary IDs.
+	beforeID, afterID, err := v2GetBoundaryIDs(tx, params)
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}

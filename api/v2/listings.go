@@ -79,6 +79,9 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 	// Extract the subject-search query parameter.
 	subjectSearch := ctx.QueryParam("subject-search")
 
+	// Extract the type query parameter.
+	notificationType := ctx.QueryParam("type")
+
 	// Begin a database transaction
 	tx, err := a.DB.Begin()
 	if err != nil {
@@ -119,16 +122,17 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 
 	// Obtain the listing.
 	params := &db.V2NotificationListingParameters{
-		User:            user,
-		Limit:           limit,
-		Seen:            seen,
-		SortOrder:       *(sortOrderParam.GetValue().(*query.SortOrder)),
-		BeforeID:        beforeID,
-		BeforeTimestamp: beforeTimestamp,
-		AfterID:         afterID,
-		AfterTimestamp:  afterTimestamp,
-		CountOnly:       countOnly,
-		SubjectSearch:   subjectSearch,
+		User:             user,
+		Limit:            limit,
+		Seen:             seen,
+		SortOrder:        *(sortOrderParam.GetValue().(*query.SortOrder)),
+		BeforeID:         beforeID,
+		BeforeTimestamp:  beforeTimestamp,
+		AfterID:          afterID,
+		AfterTimestamp:   afterTimestamp,
+		CountOnly:        countOnly,
+		SubjectSearch:    subjectSearch,
+		NotificationType: notificationType,
 	}
 	listing, err := db.V2ListNotifications(tx, params)
 	if err != nil {

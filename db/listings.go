@@ -236,6 +236,9 @@ type V2NotificationListingParameters struct {
 
 	// If specified, only messages with subjects matching the given search string will be returned.
 	SubjectSearch string
+
+	// If specified, only messages of the given type will be returned.
+	NotificationType string
 }
 
 // v2SubjectSearchString converts a string to a search string suitable for a subject search.
@@ -270,34 +273,88 @@ func v2ListNotificationsBaseQuery(params *V2NotificationListingParameters) sq.Se
 		queryBuilder = queryBuilder.Where(sq.Like{"lower(n.subject)": v2SubjectSearchString(params.SubjectSearch)})
 	}
 
+	// Apply the notification type parameter if it was specified.
+	if params.NotificationType != "" {
+		notificationType := strings.ToLower(params.NotificationType)
+		queryBuilder = queryBuilder.Where(sq.Eq{"nt.name": notificationType})
+	}
+
 	return queryBuilder
+}
+
+// v2AddBeforeIDWhereClause adds a component to the WHERE clause ensuring that only messages that were created before
+// the message with the ID and timestamp provided in the parameters will be included in the listing. We ensure
+// deterministic ordering for messages created at the same time by sorting on both timestamp and notification ID.
+func v2AddBeforeIDWhereClause(
+	queryBuilder sq.SelectBuilder,
+	beforeID string,
+	beforeTimestamp *time.Time,
+) (sq.SelectBuilder, error) {
+
+	// Both the notification ID and corresponding timestamp are required.
+	if beforeTimestamp == nil {
+		return queryBuilder, fmt.Errorf("before ID provided without before timestamp")
+	}
+
+	// Add the clause.
+	queryBuilder = queryBuilder.
+		Where(
+			sq.Or{
+				sq.Lt{"n.time_created": *beforeTimestamp},
+				sq.And{
+					sq.Eq{"n.time_created": *beforeTimestamp},
+					sq.LtOrEq{"n.id": beforeID},
+				},
+			},
+		)
+
+	return queryBuilder, nil
+}
+
+// v2AddAfterIDWhereClause adds a component to the WHERE clause ensuring that only messages that were created after the
+// message with the ID and timestamp provided in the parameter will be included in the lsting. We ensure deterministic
+// ordering for messages created at the same time by sorting on both timestamp and notification ID.
+func v2AddAfterIDWhereClause(
+	queryBuilder sq.SelectBuilder,
+	afterID string,
+	afterTimestamp *time.Time,
+) (sq.SelectBuilder, error) {
+
+	// Both the notification ID and corresponding timestamp are required.
+	if afterTimestamp == nil {
+		return queryBuilder, fmt.Errorf("after ID provided without after timestamp")
+	}
+
+	// Add the clause.
+	queryBuilder = queryBuilder.
+		Where(
+			sq.Or{
+				sq.Gt{"n.time_created": *afterTimestamp},
+				sq.And{
+					sq.Eq{"n.time_created": *afterTimestamp},
+					sq.GtOrEq{"n.id": afterID},
+				},
+			},
+		)
+
+	return queryBuilder, nil
 }
 
 // v2AddPaginationSettings adds pagination settings to a notification listing query for version 2 of the API.
 func v2AddPaginationSettings(
-	listingQueryBuilder sq.SelectBuilder,
+	queryBuilder sq.SelectBuilder,
 	params *V2NotificationListingParameters,
 ) (sq.SelectBuilder, error) {
 
 	// Add the parameters to get to the correct page.
 	if params.BeforeID != "" {
-		if params.BeforeTimestamp == nil {
-			return listingQueryBuilder, fmt.Errorf("before ID provided without before timestamp")
-		}
-		listingQueryBuilder = listingQueryBuilder.
-			Where(sq.LtOrEq{"n.id": params.BeforeID}).
-			Where(sq.LtOrEq{"n.time_created": *params.BeforeTimestamp})
+		return v2AddBeforeIDWhereClause(queryBuilder, params.BeforeID, params.BeforeTimestamp)
 	}
 	if params.AfterID != "" {
-		if params.AfterTimestamp == nil {
-			return listingQueryBuilder, fmt.Errorf("after ID provided without after timestamp")
-		}
-		listingQueryBuilder = listingQueryBuilder.
-			Where(sq.GtOrEq{"n.id": params.AfterID}).
-			Where(sq.GtOrEq{"n.time_created": *params.AfterTimestamp})
+		return v2AddAfterIDWhereClause(queryBuilder, params.AfterID, params.AfterTimestamp)
 	}
 
-	return listingQueryBuilder, nil
+	return queryBuilder, nil
 }
 
 // v2ApplySortOrder applies the sort order to a notification listing for version 2 of the API.
@@ -399,20 +456,42 @@ func v2GetNotificationCount(tx *sql.Tx, params *V2NotificationListingParameters)
 	return total, nil
 }
 
+// runBoundaryIDQueryParams defines the parameters to runBoundaryIDQuery.
+type runBoundaryIDQueryParams struct {
+	Tx                  *sql.Tx
+	QueryBuilder        sq.SelectBuilder
+	WhereFn             func(sq.SelectBuilder, string, *time.Time) (sq.SelectBuilder, error)
+	ComparisonID        string
+	ComparisonTimestamp *time.Time
+	SortOrder           query.SortOrder
+	Offset              uint64
+}
+
 // runBoundaryIDQuery runs a single boundary ID query and returns the result.
-func runBoundaryIDQuery(
-	tx *sql.Tx,
-	queryBuilder sq.SelectBuilder,
-) (string, error) {
+func runBoundaryIDQuery(params runBoundaryIDQueryParams) (string, error) {
+	builder := params.QueryBuilder
+	var err error
+
+	// Add the where clause to the query if necessary.
+	if params.WhereFn != nil {
+		builder, err = params.WhereFn(params.QueryBuilder, params.ComparisonID, params.ComparisonTimestamp)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Add the sort order, offset and limit to the query.
+	builder = v2ApplySortOrder(builder, params.SortOrder)
+	builder = builder.Offset(params.Offset).Limit(1)
 
 	// Build the query.
-	query, args, err := queryBuilder.ToSql()
+	query, args, err := builder.ToSql()
 	if err != nil {
 		return "", err
 	}
 
 	// Execute the query.
-	rows, err := tx.Query(query, args...)
+	rows, err := params.Tx.Query(query, args...)
 	if err != nil {
 		return "", err
 	}
@@ -442,12 +521,15 @@ func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (stri
 	if params.BeforeID != "" {
 		if params.Limit > 0 {
 			beforeID, err = runBoundaryIDQuery(
-				tx,
-				v2ApplySortOrder(queryBuilder, query.SortOrderDescending).
-					Where(sq.LtOrEq{"n.id": params.BeforeID}).
-					Where(sq.LtOrEq{"n.time_created": params.BeforeTimestamp}).
-					Offset(params.Limit).
-					Limit(1),
+				runBoundaryIDQueryParams{
+					Tx:                  tx,
+					QueryBuilder:        queryBuilder,
+					WhereFn:             v2AddBeforeIDWhereClause,
+					ComparisonID:        params.BeforeID,
+					ComparisonTimestamp: params.BeforeTimestamp,
+					SortOrder:           query.SortOrderDescending,
+					Offset:              params.Limit,
+				},
 			)
 			if err != nil {
 				return "", "", err
@@ -455,12 +537,15 @@ func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (stri
 		}
 
 		afterID, err = runBoundaryIDQuery(
-			tx,
-			v2ApplySortOrder(queryBuilder, query.SortOrderAscending).
-				Where(sq.GtOrEq{"n.id": params.BeforeID}).
-				Where(sq.GtOrEq{"n.time_created": params.BeforeTimestamp}).
-				Offset(1).
-				Limit(1),
+			runBoundaryIDQueryParams{
+				Tx:                  tx,
+				QueryBuilder:        queryBuilder,
+				WhereFn:             v2AddAfterIDWhereClause,
+				ComparisonID:        params.BeforeID,
+				ComparisonTimestamp: params.BeforeTimestamp,
+				SortOrder:           query.SortOrderAscending,
+				Offset:              1,
+			},
 		)
 		if err != nil {
 			return "", "", err
@@ -473,12 +558,15 @@ func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (stri
 	if params.AfterID != "" {
 		if params.Limit > 0 {
 			afterID, err = runBoundaryIDQuery(
-				tx,
-				v2ApplySortOrder(queryBuilder, query.SortOrderAscending).
-					Where(sq.GtOrEq{"n.id": params.AfterID}).
-					Where(sq.GtOrEq{"n.time_created": params.AfterTimestamp}).
-					Offset(params.Limit).
-					Limit(1),
+				runBoundaryIDQueryParams{
+					Tx:                  tx,
+					QueryBuilder:        queryBuilder,
+					WhereFn:             v2AddAfterIDWhereClause,
+					ComparisonID:        params.AfterID,
+					ComparisonTimestamp: params.AfterTimestamp,
+					SortOrder:           query.SortOrderAscending,
+					Offset:              params.Limit,
+				},
 			)
 			if err != nil {
 				return "", "", err
@@ -486,12 +574,15 @@ func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (stri
 		}
 
 		beforeID, err = runBoundaryIDQuery(
-			tx,
-			v2ApplySortOrder(queryBuilder, query.SortOrderDescending).
-				Where(sq.LtOrEq{"n.id": params.AfterID}).
-				Where(sq.LtOrEq{"n.time_created": params.AfterTimestamp}).
-				Offset(1).
-				Limit(1),
+			runBoundaryIDQueryParams{
+				Tx:                  tx,
+				QueryBuilder:        queryBuilder,
+				WhereFn:             v2AddBeforeIDWhereClause,
+				ComparisonID:        params.AfterID,
+				ComparisonTimestamp: params.AfterTimestamp,
+				SortOrder:           query.SortOrderDescending,
+				Offset:              1,
+			},
 		)
 		if err != nil {
 			return "", "", err
@@ -506,10 +597,12 @@ func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (stri
 
 		if params.Limit > 0 {
 			afterID, err = runBoundaryIDQuery(
-				tx,
-				v2ApplySortOrder(queryBuilder, query.SortOrderAscending).
-					Offset(params.Limit).
-					Limit(1),
+				runBoundaryIDQueryParams{
+					Tx:           tx,
+					QueryBuilder: queryBuilder,
+					SortOrder:    query.SortOrderAscending,
+					Offset:       params.Limit,
+				},
 			)
 			if err != nil {
 				return "", "", err
@@ -527,10 +620,12 @@ func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (stri
 
 		if params.Limit > 0 {
 			beforeID, err = runBoundaryIDQuery(
-				tx,
-				v2ApplySortOrder(queryBuilder, query.SortOrderDescending).
-					Offset(params.Limit).
-					Limit(1),
+				runBoundaryIDQueryParams{
+					Tx:           tx,
+					QueryBuilder: queryBuilder,
+					SortOrder:    query.SortOrderDescending,
+					Offset:       params.Limit,
+				},
 			)
 			if err != nil {
 				return "", "", err

@@ -140,8 +140,41 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 		return err
 	}
 
-	return ctx.JSON(
-		http.StatusOK,
-		listing,
-	)
+	return ctx.JSON(http.StatusOK, listing)
+}
+
+// GetMessageHandler handles requests for obtaining information about a single notification.
+func (a *API) GetMessageHandler(ctx echo.Context) error {
+	id := ctx.Param("id")
+
+	// Extract and validate the user query parameter.
+	user, err := query.ValidatedQueryParam(ctx, "user", "required")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: "missing required query parameter: user",
+		})
+	}
+
+	// Begin a database transaction
+	tx, err := a.DB.Begin()
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+	defer tx.Rollback()
+
+	// Get the notification.
+	notification, err := db.GetNotification(tx, user, id)
+	if err != nil {
+		a.Echo.Logger.Error(err)
+		return err
+	}
+
+	// Return a 404 if the notification wasn't found.
+	if notification == nil {
+		desc := fmt.Sprintf("notification ID %s", id)
+		return ctx.JSON(http.StatusNotFound, model.NotFound(desc))
+	}
+
+	return ctx.JSON(http.StatusOK, notification)
 }

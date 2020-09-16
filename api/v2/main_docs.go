@@ -118,3 +118,37 @@ type notificationListingV2 struct {
 	// in:body
 	Body model.V2NotificationListing
 }
+
+// swagger:route GET /v2/messages/{id} v2 getMessageV2
+//
+// Get Notification Details
+//
+// This endpoint returns the notification with the specified ID.
+//
+// responses:
+//   200: v2Notification
+//   400: errorResponse
+//   404: errorResponse
+//   500: errorResponse
+
+// Notification
+// swagger:response v2Notification
+type notificationV2 struct {
+	// in:body
+	Body model.Notification
+}
+
+// Parameters for the `/v2/messages/{id}` endpoint.
+// swagger:parameters getMessageV2
+type getNotificationParametersV2 struct {
+	// The username of the person retrieving the notification.
+	//
+	// in:query
+	// required: true
+	User string `json:"user"`
+
+	// The notification ID.
+	//
+	// in:path
+	ID string
+}

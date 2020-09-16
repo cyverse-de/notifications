@@ -29,6 +29,13 @@ func InvalidRequestBody(err error) *ErrorResponse {
 	}
 }
 
+// NotFound formats an error response indicating that an entity could not be found.
+func NotFound(desc string) *ErrorResponse {
+	return &ErrorResponse{
+		Message: fmt.Sprintf("%s not found", desc),
+	}
+}
+
 // InternalError formats an error message indicating that an internal error occurred.
 func InternalError(err error) *ErrorResponse {
 	return &ErrorResponse{

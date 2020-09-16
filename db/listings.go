@@ -678,3 +678,60 @@ func V2ListNotifications(tx *sql.Tx, params *V2NotificationListingParameters) (*
 	}
 	return result, nil
 }
+
+// GetNotification returns the notification with the given ID.
+func GetNotification(tx *sql.Tx, user string, id string) (*model.Notification, error) {
+	wrapMsg := "unable to look up the notification"
+
+	// Begin building the query.
+	queryBuilder := sq.StatementBuilder.
+		PlaceholderFormat(sq.Dollar).
+		Select().
+		Column("nt.name AS type").
+		Column("n.seen").
+		Column("n.deleted").
+		Column("n.outgoing_json AS message").
+		Column("n.id").
+		Column("n.time_created AS time_created").
+		From("notifications n").
+		Join("users u ON n.user_id = u.id").
+		Join("notification_types nt ON n.notification_type_id = nt.id").
+		Where(sq.Eq{"u.username": user}).
+		Where(sq.Eq{"n.id": id})
+
+	// Generate the query.
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return nil, errors.Wrap(err, wrapMsg)
+	}
+
+	// Execute the query.
+	rows, err := tx.Query(query, args...)
+	if err != nil {
+		return nil, errors.Wrap(err, wrapMsg)
+	}
+	defer rows.Close()
+
+	// Extract the message from the result set; an error is not returned if there's no matching message.
+	var message *model.Notification
+	if rows.Next() {
+		var notificationType string
+		var messageText []byte
+		var seen, deleted bool
+		var id, timeCreated string
+
+		// Fetch the data for the current row from the database.
+		err = rows.Scan(&notificationType, &seen, &deleted, &messageText, &id, &timeCreated)
+		if err != nil {
+			return nil, errors.Wrap(err, wrapMsg)
+		}
+
+		// Unmarshal the message and plug in any values that might have changed.
+		message, err = formatNotification(messageText, notificationType, seen, deleted)
+		if err != nil {
+			return nil, errors.Wrap(err, wrapMsg)
+		}
+	}
+
+	return message, nil
+}

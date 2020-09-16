@@ -76,6 +76,9 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 		})
 	}
 
+	// Extract the subject-search query parameter.
+	subjectSearch := ctx.QueryParam("subject-search")
+
 	// Begin a database transaction
 	tx, err := a.DB.Begin()
 	if err != nil {
@@ -125,6 +128,7 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 		AfterID:         afterID,
 		AfterTimestamp:  afterTimestamp,
 		CountOnly:       countOnly,
+		SubjectSearch:   subjectSearch,
 	}
 	listing, err := db.V2ListNotifications(tx, params)
 	if err != nil {

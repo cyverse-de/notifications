@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cyverse-de/notifications/model"
@@ -232,6 +233,18 @@ type V2NotificationListingParameters struct {
 
 	// If true, only the notification counts will be returned.
 	CountOnly bool
+
+	// If specified, only messages with subjects matching the given search string will be returned.
+	SubjectSearch string
+}
+
+// v2SubjectSearchString converts a string to a search string suitable for a subject search.
+func v2SubjectSearchString(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "%", "\\%")
+	s = strings.ReplaceAll(s, "_", "\\_")
+	s = fmt.Sprintf("%%%s%%", s)
+	return s
 }
 
 // v2ListNotificationsBaseQuery builds the base query for notification listings in version 2 of the API.
@@ -250,6 +263,11 @@ func v2ListNotificationsBaseQuery(params *V2NotificationListingParameters) sq.Se
 	// Apply the seen parameter if the user didn't request to see messages that have been marked as seen.
 	if !params.Seen {
 		queryBuilder = queryBuilder.Where(sq.Eq{"n.seen": false})
+	}
+
+	// Apply the subject search parameter if it was specified.
+	if params.SubjectSearch != "" {
+		queryBuilder = queryBuilder.Where(sq.Like{"lower(n.subject)": v2SubjectSearchString(params.SubjectSearch)})
 	}
 
 	return queryBuilder

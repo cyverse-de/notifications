@@ -178,3 +178,15 @@ type SuccessCount struct {
 	// The number of items updated.
 	Count int `json:"count"`
 }
+
+// MultipleMessageUpdateRequest describes a request body indicating that multilpe notification messages should be
+// updated.
+type MultipleMessageUpdateRequest struct {
+
+	// The list of IDs to update.
+	IDs []string `json:"ids" validate:"dive,uuid_rfc4122"`
+
+	// If true, all messages for the user will be updated and any identifiers sent in the `ids` element will be
+	// ignored.
+	AllNotifications bool `json:"all_notifications"`
+}

@@ -164,7 +164,7 @@ type notificationV2 struct {
 
 // Parameters for endpoints that return or update individual notifications.
 // swagger:parameters getMessageV2 markMessageSeenV2 deleteMessageV2
-type getNotificationParametersV2 struct {
+type singleNotificationParametersV2 struct {
 	// The username of the authenticated user.
 	//
 	// in:query
@@ -175,4 +175,29 @@ type getNotificationParametersV2 struct {
 	//
 	// in:path
 	ID string
+}
+
+// swagger:route POST /v2/messages/seen markMessagesSeenV2
+//
+// Mark Multiple Messages Seen
+//
+// This endpoint updates the database to indicate that the user has already seen multiple notification messages.
+//
+// responsees:
+//   200: emptyResponse
+//   400: errorResponse
+//   404: errorResponse
+//   500: errorResponse
+
+// Parameters for endpoints that update multiple notifications.
+// swagger:parameters markMessagesSeenV2
+type multipleNotificationParametersV2 struct {
+	// The username of the authenticated user.
+	//
+	// in:query
+	// required: true
+	User string `json:"user"`
+
+	// in:body
+	Body model.MultipleMessageUpdateRequest
 }

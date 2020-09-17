@@ -81,3 +81,62 @@ func GetNotificationTimestamp(tx *sql.Tx, notificationID string) (*time.Time, er
 	// If we get here then there was no matching notification.
 	return nil, nil
 }
+
+// FilterMissingIDs returns the IDs in the given ID list that refer to notifications that either don't exist or were
+// not directed to the user with the given user ID.
+func FilterMissingIDs(tx *sql.Tx, userID string, ids []string) ([]string, error) {
+	wrapMsg := "error encountered while verifying notification IDs"
+
+	// Build the query.
+	query, args, err := sq.StatementBuilder.
+		PlaceholderFormat(sq.Dollar).
+		Select().
+		From("notifications").
+		Column("id").
+		Where(sq.Eq{"id": ids}).
+		Where(sq.Eq{"user_id": userID}).
+		ToSql()
+	if err != nil {
+		return nil, errors.Wrap(err, wrapMsg)
+	}
+
+	// Query the database.
+	rows, err := tx.Query(query, args...)
+	if err != nil {
+		return nil, errors.Wrap(err, wrapMsg)
+	}
+	defer rows.Close()
+
+	// Load the list of extant notification IDs.
+	extantIDs := make([]string, 0)
+	for rows.Next() {
+		var id string
+		err := rows.Scan(&id)
+		if err != nil {
+			return nil, errors.Wrap(err, wrapMsg)
+		}
+		extantIDs = append(extantIDs, id)
+	}
+
+	// Create a map extant IDs and use it as a set.
+	extantIDSet := make(map[string]bool)
+	for _, id := range extantIDs {
+		extantIDSet[id] = true
+	}
+
+	// Build a map of missing IDs.
+	missingIDSet := make(map[string]bool)
+	for _, id := range ids {
+		if !extantIDSet[id] {
+			missingIDSet[id] = true
+		}
+	}
+
+	// Extract the missing IDs into a slice.
+	missingIDs := make([]string, 0)
+	for id := range missingIDSet {
+		missingIDs = append(missingIDs, id)
+	}
+
+	return missingIDs, nil
+}

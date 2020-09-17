@@ -39,4 +39,5 @@ func (a API) RegisterHandlers() {
 	a.Group.GET("/", a.RootHandler)
 	a.Group.GET("/messages", a.GetMessagesHandler)
 	a.Group.GET("/messages/:id", a.GetMessageHandler)
+	a.Group.POST("/messages/:id/seen", a.MarkMessageSeenHandler)
 }

@@ -145,7 +145,14 @@ func (a *API) GetMessagesHandler(ctx echo.Context) error {
 
 // GetMessageHandler handles requests for obtaining information about a single notification.
 func (a *API) GetMessageHandler(ctx echo.Context) error {
-	id := ctx.Param("id")
+
+	// Extract and validate the notification ID.
+	id, err := query.ValidatedPathParam(ctx, "id", "uuid_rfc4122")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+			Message: "invalid notification ID",
+		})
+	}
 
 	// Extract and validate the user query parameter.
 	user, err := query.ValidatedQueryParam(ctx, "user", "required")

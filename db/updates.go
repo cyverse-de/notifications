@@ -8,6 +8,38 @@ import (
 	"github.com/pkg/errors"
 )
 
+// MarkMessageAsSeen marks a single message as seen in the database if it exists and is targedted to the user with the
+// given user ID. The number of messages that were updated is returned.
+func MarkMessageAsSeen(tx *sql.Tx, userID string, id string) (int, error) {
+	wrapMsg := fmt.Sprintf("unable to mark message %s as seen", id)
+
+	// Build the SQL statement.
+	statement, args, err := sq.StatementBuilder.
+		PlaceholderFormat(sq.Dollar).
+		Update("notifications").
+		Set("seen", true).
+		Where(sq.Eq{"user_id": userID}).
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	// Execute the SQL statement.
+	result, err := tx.Exec(statement, args...)
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	// Determine how many rows were affected. We require any DBMS that we use to support this.
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	return int(count), nil
+}
+
 // MarkMessagesAsSeen takes a list of UUIDs and marks the corresponding messages as seen in the database if the
 // corresponding messages exist and were targeted to the user with the given user ID. A count of the number of
 // messages that were eligible to be updated (even if some messages were already marked as seen) is returned.

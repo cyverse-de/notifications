@@ -24,6 +24,18 @@ func ValidatedQueryParam(ctx echo.Context, name, validationTag string) (string, 
 	return value, nil
 }
 
+// ValidatedPathParam extracts a path parameter and validates it.
+func ValidatedPathParam(ctx echo.Context, name, validationTag string) (string, error) {
+	value := ctx.Param(name)
+
+	// Validate the value.
+	if err := v.Var(value, validationTag); err != nil {
+		return "", err
+	}
+
+	return value, nil
+}
+
 // ValidateBooleanQueryParam extracts a Boolean query parameter and validates it.
 func ValidateBooleanQueryParam(ctx echo.Context, name string, defaultValue *bool) (bool, error) {
 	errMsg := fmt.Sprintf("invalid query parameter: %s", name)

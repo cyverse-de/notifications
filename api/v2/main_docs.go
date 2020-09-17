@@ -138,8 +138,20 @@ type notificationV2 struct {
 	Body model.Notification
 }
 
+// swagger:route POST /v2/messages/{id}/seen markMessageSeenV2
+//
+// Mark a Message Seen
+//
+// This endpoint updates the database to indicate that the user has already seen a notification message.
+//
+// responses:
+//   200: emptyResponse
+//   400: emptyResponse
+//   404: emptyResponse
+//   500: emptyResponse
+
 // Parameters for the `/v2/messages/{id}` endpoint.
-// swagger:parameters getMessageV2
+// swagger:parameters getMessageV2 markMessageSeenV2
 type getNotificationParametersV2 struct {
 	// The username of the person retrieving the notification.
 	//

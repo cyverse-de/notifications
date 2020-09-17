@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// MarkMessageAsSeen marks a single message as seen in the database if it exists and is targedted to the user with the
+// MarkMessageAsSeen marks a single message as seen in the database if it exists and is targeted to the user with the
 // given user ID. The number of messages that were updated is returned.
 func MarkMessageAsSeen(tx *sql.Tx, userID string, id string) (int, error) {
 	wrapMsg := fmt.Sprintf("unable to mark message %s as seen", id)
@@ -18,6 +18,38 @@ func MarkMessageAsSeen(tx *sql.Tx, userID string, id string) (int, error) {
 		PlaceholderFormat(sq.Dollar).
 		Update("notifications").
 		Set("seen", true).
+		Where(sq.Eq{"user_id": userID}).
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	// Execute the SQL statement.
+	result, err := tx.Exec(statement, args...)
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	// Determine how many rows were affected. We require any DBMS that we use to support this.
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, errors.Wrap(err, wrapMsg)
+	}
+
+	return int(count), nil
+}
+
+// DeleteMessage marks a single message as deleted in the database if it exists and is targeted to the user with the
+// given user ID. The number of messages that were updated is returned.
+func DeleteMessage(tx *sql.Tx, userID string, id string) (int, error) {
+	wrapMsg := fmt.Sprintf("unable to makre message %s as seen", id)
+
+	// Build the SQL statement.
+	statement, args, err := sq.StatementBuilder.
+		PlaceholderFormat(sq.Dollar).
+		Update("notifications").
+		Set("deleted", true).
 		Where(sq.Eq{"user_id": userID}).
 		Where(sq.Eq{"id": id}).
 		ToSql()

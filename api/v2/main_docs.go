@@ -146,14 +146,26 @@ type notificationV2 struct {
 //
 // responses:
 //   200: emptyResponse
-//   400: emptyResponse
-//   404: emptyResponse
-//   500: emptyResponse
+//   400: errorResponse
+//   404: errorResponse
+//   500: errorResponse
 
-// Parameters for the `/v2/messages/{id}` endpoint.
-// swagger:parameters getMessageV2 markMessageSeenV2
+// swagger:route DELETE /v2/messages/{id} deleteMessageV2
+//
+// Delete a Message
+//
+// This endpoint updates the database to mark a notification message as deleted.
+//
+// responses:
+//   200: emptyResponse
+//   400: errorResponse
+//   404: errorResponse
+//   500: errorResponse
+
+// Parameters for endpoints that return or update individual notifications.
+// swagger:parameters getMessageV2 markMessageSeenV2 deleteMessageV2
 type getNotificationParametersV2 struct {
-	// The username of the person retrieving the notification.
+	// The username of the authenticated user.
 	//
 	// in:query
 	// required: true

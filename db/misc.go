@@ -118,7 +118,7 @@ func FilterMissingIDs(tx *sql.Tx, userID string, ids []string) ([]string, error)
 		extantIDs = append(extantIDs, id)
 	}
 
-	// Create a map extant IDs and use it as a set.
+	// Create a map of extant IDs and use it as a set.
 	extantIDSet := make(map[string]bool)
 	for _, id := range extantIDs {
 		extantIDSet[id] = true

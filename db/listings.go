@@ -380,7 +380,7 @@ func v2GetListing(tx *sql.Tx, params *V2NotificationListingParameters) ([]*model
 		return nil, err
 	}
 
-	// Sort the inner query based on the
+	// Sort the inner query based on the requested sort order and boundary settings.
 	innerSortOrder := params.SortOrder
 	if params.AfterTimestamp != nil {
 		innerSortOrder = query.SortOrderAscending
@@ -691,8 +691,6 @@ func GetNotification(tx *sql.Tx, user string, id string) (*model.Notification, e
 		Column("n.seen").
 		Column("n.deleted").
 		Column("n.outgoing_json AS message").
-		Column("n.id").
-		Column("n.time_created AS time_created").
 		From("notifications n").
 		Join("users u ON n.user_id = u.id").
 		Join("notification_types nt ON n.notification_type_id = nt.id").
@@ -718,10 +716,9 @@ func GetNotification(tx *sql.Tx, user string, id string) (*model.Notification, e
 		var notificationType string
 		var messageText []byte
 		var seen, deleted bool
-		var id, timeCreated string
 
 		// Fetch the data for the current row from the database.
-		err = rows.Scan(&notificationType, &seen, &deleted, &messageText, &id, &timeCreated)
+		err = rows.Scan(&notificationType, &seen, &deleted, &messageText)
 		if err != nil {
 			return nil, errors.Wrap(err, wrapMsg)
 		}

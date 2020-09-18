@@ -98,7 +98,7 @@ func ValidateUUIDQueryParam(ctx echo.Context, name string, required bool) (strin
 		}
 	}
 
-	// Make sure that the query parameter format is correct if it's specified
+	// Make sure that the query parameter format is correct.
 	if value != "" {
 		if err := v.Var(value, "uuid_rfc4122"); err != nil {
 			return "", errors.Wrap(err, errMsg)

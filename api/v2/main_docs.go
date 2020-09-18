@@ -189,8 +189,21 @@ type singleNotificationParametersV2 struct {
 //   404: errorResponse
 //   500: errorResponse
 
+// swagger:route POST /v2/messages/delete deleteMessagesV2
+//
+// Delete Multiple Messages
+//
+// This endpoint updates the database to indicate that multiple notification messages have been deleted. Messages that
+// have been marked as deleted will not show up in any notification listings.
+//
+// responsees:
+//   200: emptyResponse
+//   400: errorResponse
+//   404: errorResponse
+//   500: errorResponse
+
 // Parameters for endpoints that update multiple notifications.
-// swagger:parameters markMessagesSeenV2
+// swagger:parameters markMessagesSeenV2 deleteMessagesV2
 type multipleNotificationParametersV2 struct {
 	// The username of the authenticated user.
 	//

@@ -135,16 +135,21 @@ type V1NotificationListing struct {
 // V2NotificationListing describes the response body to a notification listing request in version 2 of the API.
 type V2NotificationListing struct {
 
-	// The message listing.
+	// The message listing. Note: this element will be missing if there are no matching messages or if only a message
+	// count was requested.
 	Messages []*Notification `json:"messages,omitempty"`
 
 	// The total number of messages available to be listed.
 	Total int `json:"total"`
 
-	// The ID of the most recent messsage that preceded all of the messages in the current listing page.
+	// The ID of the most recent messsage that preceded all of the messages in the current listing page. Note: this
+	// element will be missing if there are no matching messages older than the all of the messages on the curernt
+	// page or if only a message ount was requested.
 	BeforeID string `json:"before_id,omitempty"`
 
-	// The ID of the oldest message that succeeded the all of the messages in the current listing page.
+	// The ID of the oldest message that succeeded the all of the messages in the current listing page. Note: this
+	// element will be missing if there are no matching messages newer than all of the messages on the current page or
+	// if only a message count was requested.
 	AfterID string `json:"after_id,omitempty"`
 }
 

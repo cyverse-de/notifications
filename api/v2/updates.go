@@ -95,32 +95,11 @@ func (a API) updateMultipleMessages(
 	return nil
 }
 
-// MarkMultipleMessagesSeenHandler updates multiple messages in the databse to indicate that the user has already seen
-// them
-func (a *API) MarkMultipleMessagesSeenHandler(ctx echo.Context) error {
-	return a.updateMultipleMessages(ctx, func(tx *sql.Tx, userID string, body *model.MultipleMessageUpdateRequest) error {
-		var err error
-
-		if body.AllNotifications {
-			_, err = db.MarkAllMessagesAsSeen(tx, userID)
-			if err != nil {
-				a.Echo.Logger.Error(err)
-				return err
-			}
-		} else {
-			_, err = db.MarkMessagesAsSeen(tx, userID, body.IDs)
-			if err != nil {
-				a.Echo.Logger.Error(err)
-				return err
-			}
-		}
-
-		return nil
-	})
-}
-
-// MarkMessageSeenHandler updates a message in the database to indicate that the user has already seen it.
-func (a *API) MarkMessageSeenHandler(ctx echo.Context) error {
+// updateSingleMessage handles requests to update a single message in the database.
+func (a *API) updateSingleMessage(
+	ctx echo.Context,
+	updateFn func(*sql.Tx, string, string) (int, error),
+) error {
 
 	// Extract and validate the notification ID.
 	id, err := query.ValidatedPathParam(ctx, "id", "uuid_rfc4122")
@@ -162,7 +141,7 @@ func (a *API) MarkMessageSeenHandler(ctx echo.Context) error {
 	}
 
 	// Update the notification.
-	count, err := db.MarkMessageAsSeen(tx, userID, id)
+	count, err := updateFn(tx, userID, id)
 	if err != nil {
 		a.Echo.Logger.Error(err)
 		return err
@@ -183,66 +162,59 @@ func (a *API) MarkMessageSeenHandler(ctx echo.Context) error {
 	return nil
 }
 
+// MarkMultipleMessagesSeenHandler updates multiple messages in the databse to indicate that the user has already seen
+// them.
+func (a *API) MarkMultipleMessagesSeenHandler(ctx echo.Context) error {
+	return a.updateMultipleMessages(ctx, func(tx *sql.Tx, userID string, body *model.MultipleMessageUpdateRequest) error {
+		var err error
+
+		if body.AllNotifications {
+			_, err = db.MarkAllMessagesAsSeen(tx, userID)
+			if err != nil {
+				a.Echo.Logger.Error(err)
+				return err
+			}
+		} else {
+			_, err = db.MarkMessagesAsSeen(tx, userID, body.IDs)
+			if err != nil {
+				a.Echo.Logger.Error(err)
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+// DeleteMultipleMessagesHandler marks multiple messages in the database as deleted.
+func (a *API) DeleteMultipleMessagesHandler(ctx echo.Context) error {
+	return a.updateMultipleMessages(ctx, func(tx *sql.Tx, userID string, body *model.MultipleMessageUpdateRequest) error {
+		var err error
+
+		if body.AllNotifications {
+			_, err = db.DeleteMatchingMessages(tx, userID, &db.DeleteMatchingMessagesParameters{})
+			if err != nil {
+				a.Echo.Logger.Error(err)
+				return err
+			}
+		} else {
+			_, err = db.DeleteMessages(tx, userID, body.IDs)
+			if err != nil {
+				a.Echo.Logger.Error(err)
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+// MarkMessageSeenHandler updates a message in the database to indicate that the user has already seen it.
+func (a *API) MarkMessageSeenHandler(ctx echo.Context) error {
+	return a.updateSingleMessage(ctx, db.MarkMessageAsSeen)
+}
+
 // DeleteMessageHandler updates a message in the database to indicate that it has been deleted.
 func (a *API) DeleteMessageHandler(ctx echo.Context) error {
-
-	// Extract and validate the notification ID.
-	id, err := query.ValidatedPathParam(ctx, "id", "uuid_rfc4122")
-	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
-			Message: "invalid notification ID",
-		})
-	}
-
-	// This is used later if we can't find the notification to update.
-	notificationDesc := fmt.Sprintf("notification ID %s", id)
-
-	// Extract and validate the user query parameter.
-	user, err := query.ValidatedQueryParam(ctx, "user", "required")
-	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
-			Message: "missing required query parameter: user",
-		})
-	}
-
-	// Begin a database transaction
-	tx, err := a.DB.Begin()
-	if err != nil {
-		a.Echo.Logger.Error(err)
-		return err
-	}
-	defer tx.Rollback()
-
-	// Look up the user ID.
-	userID, err := db.GetUserID(tx, user)
-	if err != nil {
-		a.Echo.Logger.Error(err)
-		return err
-	}
-
-	// The notification can't be directed to the user if the user isn't in the database.
-	if userID == "" {
-		return ctx.JSON(http.StatusNotFound, model.NotFound(notificationDesc))
-	}
-
-	// Delete the notification.
-	count, err := db.DeleteMessage(tx, userID, id)
-	if err != nil {
-		a.Echo.Logger.Error(err)
-		return err
-	}
-
-	// Return a 404 no notifications were updated.
-	if count == 0 {
-		return ctx.JSON(http.StatusNotFound, model.NotFound(notificationDesc))
-	}
-
-	// Commit the transaction.
-	err = tx.Commit()
-	if err != nil {
-		a.Echo.Logger.Error(err)
-		return err
-	}
-
-	return nil
+	return a.updateSingleMessage(ctx, db.DeleteMessage)
 }

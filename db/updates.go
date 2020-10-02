@@ -14,9 +14,7 @@ func MarkMessageAsSeen(tx *sql.Tx, userID string, id string) (int, error) {
 	wrapMsg := fmt.Sprintf("unable to mark message %s as seen", id)
 
 	// Build the SQL statement.
-	statement, args, err := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Update("notifications").
+	statement, args, err := psql.Update("notifications").
 		Set("seen", true).
 		Where(sq.Eq{"user_id": userID}).
 		Where(sq.Eq{"id": id}).
@@ -46,9 +44,7 @@ func DeleteMessage(tx *sql.Tx, userID string, id string) (int, error) {
 	wrapMsg := fmt.Sprintf("unable to makre message %s as seen", id)
 
 	// Build the SQL statement.
-	statement, args, err := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Update("notifications").
+	statement, args, err := psql.Update("notifications").
 		Set("deleted", true).
 		Where(sq.Eq{"user_id": userID}).
 		Where(sq.Eq{"id": id}).
@@ -79,9 +75,7 @@ func MarkMessagesAsSeen(tx *sql.Tx, userID string, uuids []string) (int, error) 
 	wrapMsg := "unable to mark messages as seen"
 
 	// Build the SQL statement.
-	statement, args, err := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Update("notifications").
+	statement, args, err := psql.Update("notifications").
 		Set("seen", true).
 		Where(sq.Eq{"user_id": userID}).
 		Where(sq.Eq{"id": uuids}).
@@ -111,9 +105,7 @@ func MarkAllMessagesAsSeen(tx *sql.Tx, userID string) (int, error) {
 	wrapMsg := fmt.Sprintf("unable to mark all messages for user, %s, as seen", userID)
 
 	// Build the SQL statement.
-	statement, args, err := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Update("notifications").
+	statement, args, err := psql.Update("notifications").
 		Set("seen", true).
 		Where(sq.Eq{"user_id": userID}).
 		Where(sq.Eq{"seen": false}).
@@ -144,9 +136,7 @@ func DeleteMessages(tx *sql.Tx, userID string, uuids []string) (int, error) {
 	wrapMsg := "unable to delete messages"
 
 	// Build the SQL statement.
-	statement, args, err := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Update("notifications").
+	statement, args, err := psql.Update("notifications").
 		Set("deleted", true).
 		Where(sq.Eq{"user_id": userID}).
 		Where(sq.Eq{"id": uuids}).
@@ -184,9 +174,7 @@ func DeleteMatchingMessages(tx *sql.Tx, userID string, params *DeleteMatchingMes
 	// Begin building the sql statement. Having both `Set("deleted", true)` and `Where(Sq.Eq{"deleted", false})`
 	// produced an error saying that the incorrect number of arguments was given for the query. Changing the code
 	// adding the WHERE clause to `Where("not deleted")` fixed the problem.
-	queryBuilder := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Update("notifications").
+	queryBuilder := psql.Update("notifications").
 		Set("deleted", true).
 		Where("not deleted").
 		Where(sq.Eq{"user_id": userID})

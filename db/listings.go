@@ -67,9 +67,7 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 	wrapMsg := "unable to obtain the notification listing"
 
 	// Begin building the query.
-	queryBuilder := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Select().
+	queryBuilder := psql.Select().
 		Column("nt.name AS type").
 		Column("n.seen").
 		Column("n.deleted").
@@ -163,9 +161,7 @@ func V1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) 
 	wrapMsg := "unable to obtain the notification counts"
 
 	// Begin building the query.
-	queryBuilder := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Select().
+	queryBuilder := psql.Select().
 		Column("count(*)").
 		From("notifications n").
 		Join("users u ON n.user_id = u.id").
@@ -254,9 +250,7 @@ func v2SubjectSearchString(s string) string {
 func v2ListNotificationsBaseQuery(params *V2NotificationListingParameters) sq.SelectBuilder {
 
 	// Begin building the base query.
-	queryBuilder := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Select().
+	queryBuilder := psql.Select().
 		From("notifications n").
 		Join("users u ON n.user_id = u.id").
 		Join("notification_types nt ON n.notification_type_id = nt.id").
@@ -684,9 +678,7 @@ func GetNotification(tx *sql.Tx, user string, id string) (*model.Notification, e
 	wrapMsg := "unable to look up the notification"
 
 	// Begin building the query.
-	queryBuilder := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Select().
+	queryBuilder := psql.Select().
 		Column("nt.name AS type").
 		Column("n.seen").
 		Column("n.deleted").

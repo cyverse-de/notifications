@@ -14,9 +14,7 @@ func GetNotificationTypeID(tx *sql.Tx, name string) (string, error) {
 	wrapMsg := "unable to get the notification type ID"
 
 	// Build the query.
-	query, args, err := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Select().
+	query, args, err := psql.Select().
 		Column("id").
 		From("notification_types").
 		Where(sq.Eq{"name": name}).
@@ -50,9 +48,7 @@ func GetNotificationTimestamp(tx *sql.Tx, notificationID string) (*time.Time, er
 	wrapMsg := fmt.Sprintf("unable to get the timestmp for notification %s", notificationID)
 
 	// Build the query.
-	query, args, err := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Select().
+	query, args, err := psql.Select().
 		Column("time_created").
 		From("notifications").
 		Where(sq.Eq{"id": notificationID}).
@@ -88,9 +84,7 @@ func FilterMissingIDs(tx *sql.Tx, userID string, ids []string) ([]string, error)
 	wrapMsg := "error encountered while verifying notification IDs"
 
 	// Build the query.
-	query, args, err := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Select().
+	query, args, err := psql.Select().
 		From("notifications").
 		Column("id").
 		Where(sq.Eq{"id": ids}).

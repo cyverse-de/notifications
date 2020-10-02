@@ -13,9 +13,7 @@ func GetUserID(tx *sql.Tx, username string) (string, error) {
 	wrapMsg := fmt.Sprintf("unable to look up the username for %s", username)
 
 	// Build the query.
-	query, args, err := sq.StatementBuilder.
-		PlaceholderFormat(sq.Dollar).
-		Select().
+	query, args, err := psql.Select().
 		Column("id").
 		From("users").
 		Where(sq.Eq{"username": username}).

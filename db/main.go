@@ -5,7 +5,12 @@ import (
 
 	"github.com/cyverse-de/dbutil"
 	"github.com/pkg/errors"
+
+	sq "github.com/Masterminds/squirrel"
 )
+
+// A statement builder with the correct placeholder format.
+var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 // InitDatabase establishes a database connection and verifies that the database can be reached.
 func InitDatabase(driverName, databaseURI string) (*sql.DB, error) {

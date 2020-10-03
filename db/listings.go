@@ -450,11 +450,11 @@ func v2GetNotificationCount(tx *sql.Tx, params *V2NotificationListingParameters)
 	return total, nil
 }
 
-// runBoundaryIDQueryParams defines the parameters to runBoundaryIDQuery.
+// runBoundaryIDQueryParams defines the parameters to runBoundaryIDQuery. The intent of this structure is to provide
+// a way to pass named parameters to runBoundaryIDQuery.
 type runBoundaryIDQueryParams struct {
 	Tx                  *sql.Tx
-	QueryBuilder        sq.SelectBuilder
-	WhereFn             func(sq.SelectBuilder, string, *time.Time) (sq.SelectBuilder, error)
+	ListingParams       *V2NotificationListingParameters
 	ComparisonID        string
 	ComparisonTimestamp *time.Time
 	SortOrder           query.SortOrder
@@ -462,13 +462,23 @@ type runBoundaryIDQueryParams struct {
 }
 
 // runBoundaryIDQuery runs a single boundary ID query and returns the result.
-func runBoundaryIDQuery(params runBoundaryIDQueryParams) (string, error) {
-	builder := params.QueryBuilder
+func runBoundaryIDQuery(params *runBoundaryIDQueryParams) (string, error) {
 	var err error
 
-	// Add the where clause to the query if necessary.
-	if params.WhereFn != nil {
-		builder, err = params.WhereFn(params.QueryBuilder, params.ComparisonID, params.ComparisonTimestamp)
+	// Build the base query.
+	builder := v2ListNotificationsBaseQuery(params.ListingParams).Column("n.id")
+
+	// A WHERE clause is needed if we're querying relative to an existing message.
+	if params.ComparisonID != "" && params.ComparisonTimestamp != nil {
+
+		// The specific WHERE clause to add depends on the sort order.
+		whereFn := v2AddBeforeIDWhereClause
+		if params.SortOrder == query.SortOrderAscending {
+			whereFn = v2AddAfterIDWhereClause
+		}
+
+		// Add the clause to the query.
+		builder, err = whereFn(builder, params.ComparisonID, params.ComparisonTimestamp)
 		if err != nil {
 			return "", err
 		}
@@ -503,132 +513,26 @@ func runBoundaryIDQuery(params runBoundaryIDQueryParams) (string, error) {
 	return id, nil
 }
 
+// boundaryIDFinder defines an interface for obtaining the IDs of messages just beyond the boundaries of the current
+// page. There are several cases that we need to account for, and there will be one implementation of this interface
+// for each case.
+type boundaryIDFinder interface {
+	GetBoundaryIDs() (string, string, error)
+}
+
 // v2GetBoundaryIDs obtains the IDs of the messages just beyond the boundaries of the current page.
 func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (string, string, error) {
-	var beforeID, afterID string
-	var err error
 
-	// Begin building the query.
-	queryBuilder := v2ListNotificationsBaseQuery(params).Column("n.id")
-
-	// Handle the case where the before ID was specified.
-	if params.BeforeID != "" {
-		if params.Limit > 0 {
-			beforeID, err = runBoundaryIDQuery(
-				runBoundaryIDQueryParams{
-					Tx:                  tx,
-					QueryBuilder:        queryBuilder,
-					WhereFn:             v2AddBeforeIDWhereClause,
-					ComparisonID:        params.BeforeID,
-					ComparisonTimestamp: params.BeforeTimestamp,
-					SortOrder:           query.SortOrderDescending,
-					Offset:              params.Limit,
-				},
-			)
-			if err != nil {
-				return "", "", err
-			}
-		}
-
-		afterID, err = runBoundaryIDQuery(
-			runBoundaryIDQueryParams{
-				Tx:                  tx,
-				QueryBuilder:        queryBuilder,
-				WhereFn:             v2AddAfterIDWhereClause,
-				ComparisonID:        params.BeforeID,
-				ComparisonTimestamp: params.BeforeTimestamp,
-				SortOrder:           query.SortOrderAscending,
-				Offset:              1,
-			},
-		)
-		if err != nil {
-			return "", "", err
-		}
-
-		return beforeID, afterID, nil
-	}
-
-	// Handle the case where the after ID was specified.
-	if params.AfterID != "" {
-		if params.Limit > 0 {
-			afterID, err = runBoundaryIDQuery(
-				runBoundaryIDQueryParams{
-					Tx:                  tx,
-					QueryBuilder:        queryBuilder,
-					WhereFn:             v2AddAfterIDWhereClause,
-					ComparisonID:        params.AfterID,
-					ComparisonTimestamp: params.AfterTimestamp,
-					SortOrder:           query.SortOrderAscending,
-					Offset:              params.Limit,
-				},
-			)
-			if err != nil {
-				return "", "", err
-			}
-		}
-
-		beforeID, err = runBoundaryIDQuery(
-			runBoundaryIDQueryParams{
-				Tx:                  tx,
-				QueryBuilder:        queryBuilder,
-				WhereFn:             v2AddBeforeIDWhereClause,
-				ComparisonID:        params.AfterID,
-				ComparisonTimestamp: params.AfterTimestamp,
-				SortOrder:           query.SortOrderDescending,
-				Offset:              1,
-			},
-		)
-		if err != nil {
-			return "", "", err
-		}
-
-		return beforeID, afterID, nil
-	}
-
-	// Handle the case where no boundary ID was specified and the sort order is ascending.
-	if params.SortOrder == query.SortOrderAscending {
-		beforeID = ""
-
-		if params.Limit > 0 {
-			afterID, err = runBoundaryIDQuery(
-				runBoundaryIDQueryParams{
-					Tx:           tx,
-					QueryBuilder: queryBuilder,
-					SortOrder:    query.SortOrderAscending,
-					Offset:       params.Limit,
-				},
-			)
-			if err != nil {
-				return "", "", err
-			}
-		} else {
-			afterID = ""
-		}
-
-		return beforeID, afterID, nil
-	}
-
-	// Handle the case where no boundary ID was specified and the sort order is descending.
-	if params.SortOrder == query.SortOrderDescending {
-		afterID = ""
-
-		if params.Limit > 0 {
-			beforeID, err = runBoundaryIDQuery(
-				runBoundaryIDQueryParams{
-					Tx:           tx,
-					QueryBuilder: queryBuilder,
-					SortOrder:    query.SortOrderDescending,
-					Offset:       params.Limit,
-				},
-			)
-			if err != nil {
-				return "", "", err
-			}
-		} else {
-			beforeID = ""
-		}
-
-		return beforeID, afterID, nil
+	// Handle each case that we have to accommodate.
+	switch {
+	case params.BeforeID != "":
+		return newBeforeIDBoundaryFinder(tx, params).GetBoundaryIDs()
+	case params.AfterID != "":
+		return newAfterIDBoundaryFinder(tx, params).GetBoundaryIDs()
+	case params.SortOrder == query.SortOrderAscending:
+		return newAscendingBoundaryFinder(tx, params).GetBoundaryIDs()
+	case params.SortOrder == query.SortOrderDescending:
+		return newDescendingBoundaryFinder(tx, params).GetBoundaryIDs()
 	}
 
 	// If execution get to this point, we have problems.

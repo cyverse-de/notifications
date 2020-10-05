@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"net/http"
 
 	v1 "github.com/cyverse-de/notifications/api/v1"
@@ -8,12 +9,15 @@ import (
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/model"
 	"github.com/labstack/echo"
+	"gopkg.in/cyverse-de/messaging.v7"
 )
 
 // API defines the REST API of the notifications service
 type API struct {
 	Echo         *echo.Echo
 	AMQPSettings *common.AMQPSettings
+	AMQPClient   *messaging.Client
+	DB           *sql.DB
 	Service      string
 	Title        string
 	Version      string
@@ -36,8 +40,11 @@ func (a API) RegisterHandlers() {
 	// Register the group for API version 1.
 	v1Group := a.Echo.Group("/v1")
 	v1API := v1.API{
+		Echo:         a.Echo,
 		Group:        v1Group,
 		AMQPSettings: a.AMQPSettings,
+		AMQPClient:   a.AMQPClient,
+		DB:           a.DB,
 		Service:      a.Service,
 		Title:        a.Title,
 		Version:      a.Version,
@@ -47,8 +54,11 @@ func (a API) RegisterHandlers() {
 	// Register the group for API version 2.
 	v2Group := a.Echo.Group("/v2")
 	v2API := v2.API{
+		Echo:         a.Echo,
 		Group:        v2Group,
 		AMQPSettings: a.AMQPSettings,
+		AMQPClient:   a.AMQPClient,
+		DB:           a.DB,
 		Service:      a.Service,
 		Title:        a.Title,
 		Version:      a.Version,

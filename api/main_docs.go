@@ -39,3 +39,7 @@ type errorResponseWrapper struct {
 	// in:body
 	Body model.ErrorResponse
 }
+
+// An empty response body.
+// swagger:response emptyResponse
+type emptyResponseWrapper struct{}

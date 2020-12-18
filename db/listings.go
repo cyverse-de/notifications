@@ -62,9 +62,69 @@ func getV1NotificationListingSortColumn(sortField query.V1ListingSortField) (str
 	return "", fmt.Errorf("unrecognized sort field: %s", string(sortField))
 }
 
+// V1NotificationCountingParameters describes the parameters available for counting notification messages.
+type V1NotificationCountingParameters struct {
+	User             string
+	Seen             *bool
+	NotificationType string
+}
+
+// v1CountNotifications counts the number of notifications matching a set of parameters.
+func v1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) (int, error) {
+
+	// Begin building the query.
+	queryBuilder := psql.Select().
+		Column("count(*)").
+		From("notifications n").
+		Join("users u ON n.user_id = u.id").
+		Join("notification_types nt ON n.notification_type_id = nt.id").
+		Where(sq.Eq{"u.username": params.User}).
+		Where(sq.Eq{"n.deleted": false})
+
+	// Apply the seen parameter if requested.
+	if params.Seen != nil {
+		queryBuilder = queryBuilder.Where(sq.Eq{"n.seen": *params.Seen})
+	}
+
+	// Apply the notification type parameter if requested.
+	if params.NotificationType != "" {
+		queryBuilder = queryBuilder.Where(sq.Eq{"nt.name": params.NotificationType})
+	}
+
+	// Build the query.
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return 0, err
+	}
+
+	// Query the database and extract the count.
+	var result int
+	row := tx.QueryRow(query, args...)
+	err = row.Scan(&result)
+	if err != nil {
+		return 0, err
+	}
+
+	return result, nil
+}
+
 // V1ListNotifications lists notifications for a user.
 func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*model.V1NotificationListing, error) {
 	wrapMsg := "unable to obtain the notification listing"
+
+	// Obtain the total number of unseen messages for the user.
+	seenFlag := false
+	unseenCount, err := v1CountNotifications(
+		tx,
+		&V1NotificationCountingParameters{
+			Seen:             &seenFlag,
+			User:             params.User,
+			NotificationType: params.NotificationType,
+		},
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, wrapMsg)
+	}
 
 	// Begin building the query.
 	queryBuilder := psql.Select().
@@ -143,57 +203,20 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 	}
 
 	result := &model.V1NotificationListing{
-		Messages: listing,
-		Total:    total,
+		Messages:    listing,
+		Total:       total,
+		UnseenTotal: unseenCount,
 	}
 	return result, nil
-}
-
-// V1NotificationCountingParameters describes the parameters available for counting notification messages.
-type V1NotificationCountingParameters struct {
-	User             string
-	Seen             *bool
-	NotificationType string
 }
 
 // V1CountNotifications counts notifications for a user.
 func V1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) (*model.V1NotificationCounts, error) {
-	wrapMsg := "unable to obtain the notification counts"
-
-	// Begin building the query.
-	queryBuilder := psql.Select().
-		Column("count(*)").
-		From("notifications n").
-		Join("users u ON n.user_id = u.id").
-		Join("notification_types nt ON n.notification_type_id = nt.id").
-		Where(sq.Eq{"u.username": params.User}).
-		Where(sq.Eq{"n.deleted": false})
-
-	// Apply the seen parameter if requested.
-	if params.Seen != nil {
-		queryBuilder = queryBuilder.Where(sq.Eq{"n.seen": *params.Seen})
-	}
-
-	// Apply the notification type parameter if requested.
-	if params.NotificationType != "" {
-		queryBuilder = queryBuilder.Where(sq.Eq{"nt.name": params.NotificationType})
-	}
-
-	// Build the query.
-	query, args, err := queryBuilder.ToSql()
+	count, err := v1CountNotifications(tx, params)
 	if err != nil {
-		return nil, errors.Wrap(err, wrapMsg)
+		return nil, errors.Wrap(err, "unable to obtain the notification counts")
 	}
-
-	// Query the database and extract the count.
-	var result = &model.V1NotificationCounts{}
-	row := tx.QueryRow(query, args...)
-	err = row.Scan(&result.UserTotal)
-	if err != nil {
-		return nil, errors.Wrap(err, wrapMsg)
-	}
-
-	return result, nil
+	return &model.V1NotificationCounts{UserTotal: count}, nil
 }
 
 // V2NotificationListingParameters describes the parameters available for listing notifications.

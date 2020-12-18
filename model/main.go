@@ -130,6 +130,9 @@ type V1NotificationListing struct {
 
 	// The total number of messages available to be listed.
 	Total int `json:"total"`
+
+	// The total number of messages that haven't been marked as seen yet.
+	UnseenTotal int `json:"unseen_total"`
 }
 
 // V2NotificationListing describes the response body to a notification listing request in version 2 of the API.

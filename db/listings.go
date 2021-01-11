@@ -193,6 +193,9 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 			return nil, errors.Wrap(err, wrapMsg)
 		}
 
+		// Reformat the notification type.
+		notificationType = strings.ReplaceAll(notificationType, "_", " ")
+
 		// Unmarshal the message and plug in any values that might have changed.
 		message, err := formatNotification(messageText, notificationType, seen, deleted)
 		if err != nil {

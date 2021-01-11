@@ -31,7 +31,7 @@ func formatNotification(
 	}
 
 	// Update any fields that we need to update.
-	message.Type = notificationType
+	message.Type = strings.ReplaceAll(notificationType, "_", " ")
 	message.Seen = seen
 	message.Deleted = deleted
 
@@ -192,9 +192,6 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 		if err != nil {
 			return nil, errors.Wrap(err, wrapMsg)
 		}
-
-		// Reformat the notification type.
-		notificationType = strings.ReplaceAll(notificationType, "_", " ")
 
 		// Unmarshal the message and plug in any values that might have changed.
 		message, err := formatNotification(messageText, notificationType, seen, deleted)

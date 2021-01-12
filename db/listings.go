@@ -204,8 +204,8 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 
 	result := &model.V1NotificationListing{
 		Messages:    listing,
-		Total:       total,
-		UnseenTotal: unseenCount,
+		Total:       fmt.Sprintf("%d", total),
+		UnseenTotal: fmt.Sprintf("%d", unseenCount),
 	}
 	return result, nil
 }

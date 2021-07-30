@@ -10,5 +10,5 @@ build:
   tagPolicy:
     gitCommit: {}
   artifacts:
-    - image: discoenv/notifications
+    - image: harbor.cyverse.org/de/notifications
   local: {}

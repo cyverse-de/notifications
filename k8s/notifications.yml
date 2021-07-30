@@ -41,7 +41,7 @@ spec:
                 path: jobservices.yml
       containers:
         - name: notifications
-          image: discoenv/notifications
+          image: harbor.cyverse.org/de/notifications
           resources:
             requests:
               cpu: "1m"

@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cyverse-de/messaging/v9"
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/model"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"github.com/pkg/errors"
-	"gopkg.in/cyverse-de/messaging.v7"
 )
 
 // fixTimestamp fixes a timestamp stored as a string in a map.
@@ -136,7 +136,7 @@ func (a API) NotificationRequestHandler(ctx echo.Context) error {
 
 	// Publish the request.
 	routingKey := fmt.Sprintf("events.notification.update.%s", outboundRequest.RequestType)
-	err = a.AMQPClient.PublishOpts(routingKey, body, messaging.JSONPublishingOpts)
+	err = a.AMQPClient.PublishContextOpts(ctx.Request().Context(), routingKey, body, messaging.JSONPublishingOpts)
 	if err != nil {
 		a.Echo.Logger.Errorf("unable to publish outbound request: %s", err.Error())
 		return ctx.JSON(http.StatusInternalServerError, model.InternalError(err))

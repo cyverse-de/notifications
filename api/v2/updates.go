@@ -9,7 +9,7 @@ import (
 	"github.com/cyverse-de/notifications/db"
 	"github.com/cyverse-de/notifications/model"
 	"github.com/cyverse-de/notifications/query"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 )
 
 // updateMultipleMessages handles requests from endpoints that update multiple messages in the database.

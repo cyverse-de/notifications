@@ -1,21 +1,31 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/DavidGamba/go-getoptions"
 	"github.com/cyverse-de/configurate"
-	"github.com/cyverse-de/echo-middleware/redoc"
+	"github.com/cyverse-de/echo-middleware/v2/redoc"
+	"github.com/cyverse-de/messaging/v9"
 	"github.com/cyverse-de/notifications/api"
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/db"
 	"github.com/go-playground/validator/v10"
-	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/cyverse-de/messaging.v7"
+
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 
 	_ "github.com/lib/pq"
 )
@@ -26,6 +36,24 @@ type commandLineOptionValues struct {
 	Config string
 	Port   int
 	Debug  bool
+}
+
+func jaegerTracerProvider(url string) (*tracesdk.TracerProvider, error) {
+	// Create the Jaeger exporter
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(url)))
+	if err != nil {
+		return nil, err
+	}
+
+	tp := tracesdk.NewTracerProvider(
+		tracesdk.WithBatcher(exp),
+		tracesdk.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("notifications"),
+		)),
+	)
+
+	return tp, nil
 }
 
 // parseCommandLine parses the command line and returns an options structure containing command-line options and
@@ -119,18 +147,51 @@ func createMessagingClient(amqpSettings *common.AMQPSettings) (*messaging.Client
 }
 
 func main() {
+	var tracerProvider *tracesdk.TracerProvider
 	optionValues := parseCommandLine()
+
+	log := buildLoggerEntry(optionValues)
+
+	otelTracesExporter := os.Getenv("OTEL_TRACES_EXPORTER")
+	if otelTracesExporter == "jaeger" {
+		jaegerEndpoint := os.Getenv("OTEL_EXPORTER_JAEGER_ENDPOINT")
+		if jaegerEndpoint == "" {
+			log.Warn("Jaeger set as OpenTelemetry trace exporter, but no Jaeger endpoint configured.")
+		} else {
+			tp, err := jaegerTracerProvider(jaegerEndpoint)
+			if err != nil {
+				log.Fatal(err)
+			}
+			tracerProvider = tp
+			otel.SetTracerProvider(tp)
+			otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+		}
+	}
+
+	if tracerProvider != nil {
+		tracerCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		defer func(tracerContext context.Context) {
+			ctx, cancel := context.WithTimeout(tracerContext, time.Second*5)
+			defer cancel()
+			if err := tracerProvider.Shutdown(ctx); err != nil {
+				log.Fatal(err)
+			}
+		}(tracerCtx)
+	}
 
 	// Create the web server.
 	e := echo.New()
 
 	// Set a custom logger.
-	e.Logger = Logger{Entry: buildLoggerEntry(optionValues)}
+	e.Logger = Logger{Entry: log}
 
 	// Register a custom validator.
 	e.Validator = &CustomValidator{validator: validator.New()}
 
 	// Add middleware.
+	e.Use(otelecho.Middleware("notifications"))
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(redoc.Serve(redoc.Opts{Title: "DE Notifications API Documentation"}))

@@ -7,7 +7,7 @@ import (
 	"github.com/cyverse-de/notifications/db"
 	"github.com/cyverse-de/notifications/model"
 	"github.com/cyverse-de/notifications/query"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 )
 
 // MarkMessagesAsSeen marks messages whose UUIDs appear in the request body as having been seen.

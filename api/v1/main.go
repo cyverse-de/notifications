@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/cyverse-de/messaging/v9"
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/model"
-	"github.com/labstack/echo"
-	"gopkg.in/cyverse-de/messaging.v7"
+	"github.com/labstack/echo/v4"
 )
 
 // API defines version 1 of the REST API for the notifications service.

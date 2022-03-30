@@ -1,21 +1,28 @@
-FROM golang:1.17-alpine
+FROM quay.io/goswagger/swagger as swagger
 
-RUN apk add --no-cache make
-RUN apk add --no-cache git
-RUN go get -u github.com/jstemmer/go-junit-report
+FROM golang:1.17 as build-root
+
+WORKDIR /build
 
 ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV GOARCH=amd64
 
-WORKDIR /go/src/github.com/cyverse-de/notifications
+COPY --from=swagger /usr/bin/swagger /usr/bin
+
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
 COPY . .
-RUN make
+RUN go build
+RUN swagger generate spec -o ./swagger.json --scan-models
 
 FROM scratch
 
 WORKDIR /app
 
-COPY --from=0 /go/src/github.com/cyverse-de/notifications/notifications /bin/notifications
-COPY --from=0 /go/src/github.com/cyverse-de/notifications/swagger.json swagger.json
+COPY --from=build-root /build/notifications /bin/notifications
+COPY --from=build-root /build/swagger.json swagger.json
 
 ENTRYPOINT ["notifications"]
 

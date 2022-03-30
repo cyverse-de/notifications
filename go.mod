@@ -8,7 +8,7 @@ require (
 	github.com/cyverse-de/configurate v0.0.0-20200527185205-4e1e92866cee
 	github.com/cyverse-de/dbutil v1.0.1
 	github.com/cyverse-de/echo-middleware/v2 v2.0.2
-	github.com/cyverse-de/messaging/v9 v9.1.3
+	github.com/cyverse-de/messaging/v9 v9.1.4
 	github.com/go-playground/validator/v10 v10.10.0
 	github.com/labstack/echo/v4 v4.7.2
 	github.com/labstack/gommon v0.3.1

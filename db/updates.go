@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -10,7 +11,7 @@ import (
 
 // MarkMessageAsSeen marks a single message as seen in the database if it exists and is targeted to the user with the
 // given user ID. The number of messages that were updated is returned.
-func MarkMessageAsSeen(tx *sql.Tx, userID string, id string) (int, error) {
+func MarkMessageAsSeen(ctx context.Context, tx *sql.Tx, userID string, id string) (int, error) {
 	wrapMsg := fmt.Sprintf("unable to mark message %s as seen", id)
 
 	// Build the SQL statement.
@@ -24,7 +25,7 @@ func MarkMessageAsSeen(tx *sql.Tx, userID string, id string) (int, error) {
 	}
 
 	// Execute the SQL statement.
-	result, err := tx.Exec(statement, args...)
+	result, err := tx.ExecContext(ctx, statement, args...)
 	if err != nil {
 		return 0, errors.Wrap(err, wrapMsg)
 	}
@@ -40,7 +41,7 @@ func MarkMessageAsSeen(tx *sql.Tx, userID string, id string) (int, error) {
 
 // DeleteMessage marks a single message as deleted in the database if it exists and is targeted to the user with the
 // given user ID. The number of messages that were updated is returned.
-func DeleteMessage(tx *sql.Tx, userID string, id string) (int, error) {
+func DeleteMessage(ctx context.Context, tx *sql.Tx, userID string, id string) (int, error) {
 	wrapMsg := fmt.Sprintf("unable to makre message %s as seen", id)
 
 	// Build the SQL statement.
@@ -54,7 +55,7 @@ func DeleteMessage(tx *sql.Tx, userID string, id string) (int, error) {
 	}
 
 	// Execute the SQL statement.
-	result, err := tx.Exec(statement, args...)
+	result, err := tx.ExecContext(ctx, statement, args...)
 	if err != nil {
 		return 0, errors.Wrap(err, wrapMsg)
 	}
@@ -71,7 +72,7 @@ func DeleteMessage(tx *sql.Tx, userID string, id string) (int, error) {
 // MarkMessagesAsSeen takes a list of UUIDs and marks the corresponding messages as seen in the database if the
 // corresponding messages exist and were targeted to the user with the given user ID. A count of the number of
 // messages that were eligible to be updated (even if some messages were already marked as seen) is returned.
-func MarkMessagesAsSeen(tx *sql.Tx, userID string, uuids []string) (int, error) {
+func MarkMessagesAsSeen(ctx context.Context, tx *sql.Tx, userID string, uuids []string) (int, error) {
 	wrapMsg := "unable to mark messages as seen"
 
 	// Build the SQL statement.
@@ -85,7 +86,7 @@ func MarkMessagesAsSeen(tx *sql.Tx, userID string, uuids []string) (int, error) 
 	}
 
 	// Execute the SQL statement
-	result, err := tx.Exec(statement, args...)
+	result, err := tx.ExecContext(ctx, statement, args...)
 	if err != nil {
 		return 0, errors.Wrap(err, wrapMsg)
 	}
@@ -101,7 +102,7 @@ func MarkMessagesAsSeen(tx *sql.Tx, userID string, uuids []string) (int, error) 
 
 // MarkAllMessagesAsSeen marks all messages in the database that are targeted for the specified user ID as having
 // been seen by the user.
-func MarkAllMessagesAsSeen(tx *sql.Tx, userID string) (int, error) {
+func MarkAllMessagesAsSeen(ctx context.Context, tx *sql.Tx, userID string) (int, error) {
 	wrapMsg := fmt.Sprintf("unable to mark all messages for user, %s, as seen", userID)
 
 	// Build the SQL statement.
@@ -115,7 +116,7 @@ func MarkAllMessagesAsSeen(tx *sql.Tx, userID string) (int, error) {
 	}
 
 	// Execute the SQL statement.
-	result, err := tx.Exec(statement, args...)
+	result, err := tx.ExecContext(ctx, statement, args...)
 	if err != nil {
 		return 0, errors.Wrap(err, wrapMsg)
 	}
@@ -132,7 +133,7 @@ func MarkAllMessagesAsSeen(tx *sql.Tx, userID string) (int, error) {
 // DeleteMessages takes a list of UUIDs and deletes the corresponding messages in the database if they exist and were
 // targeted to the user with the given user ID. A count of the number of messages that were eligible to be updated
 // (even if some messages had already been deleted) is returned.
-func DeleteMessages(tx *sql.Tx, userID string, uuids []string) (int, error) {
+func DeleteMessages(ctx context.Context, tx *sql.Tx, userID string, uuids []string) (int, error) {
 	wrapMsg := "unable to delete messages"
 
 	// Build the SQL statement.
@@ -146,7 +147,7 @@ func DeleteMessages(tx *sql.Tx, userID string, uuids []string) (int, error) {
 	}
 
 	// Execute the SQL statement.
-	result, err := tx.Exec(statement, args...)
+	result, err := tx.ExecContext(ctx, statement, args...)
 	if err != nil {
 		return 0, errors.Wrap(err, wrapMsg)
 	}
@@ -168,7 +169,7 @@ type DeleteMatchingMessagesParameters struct {
 }
 
 // DeleteMatchingMessages deletes matching messages in the database.
-func DeleteMatchingMessages(tx *sql.Tx, userID string, params *DeleteMatchingMessagesParameters) (int, error) {
+func DeleteMatchingMessages(ctx context.Context, tx *sql.Tx, userID string, params *DeleteMatchingMessagesParameters) (int, error) {
 	wrapMsg := "unable to delete matching messages"
 
 	// Begin building the sql statement. Having both `Set("deleted", true)` and `Where(Sq.Eq{"deleted", false})`
@@ -196,7 +197,7 @@ func DeleteMatchingMessages(tx *sql.Tx, userID string, params *DeleteMatchingMes
 	}
 
 	// Execute the SQL statement.
-	result, err := tx.Exec(statement, args...)
+	result, err := tx.ExecContext(ctx, statement, args...)
 	if err != nil {
 		return 0, errors.Wrap(err, wrapMsg)
 	}

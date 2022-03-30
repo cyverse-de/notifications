@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -9,7 +10,7 @@ import (
 )
 
 // GetUserID returns the ID for a user or the empty string if the user isn't in the database.
-func GetUserID(tx *sql.Tx, username string) (string, error) {
+func GetUserID(ctx context.Context, tx *sql.Tx, username string) (string, error) {
 	wrapMsg := fmt.Sprintf("unable to look up the username for %s", username)
 
 	// Build the query.
@@ -23,7 +24,7 @@ func GetUserID(tx *sql.Tx, username string) (string, error) {
 	}
 
 	// Execute the query.
-	rows, err := tx.Query(query, args...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return "", errors.Wrap(err, wrapMsg)
 	}

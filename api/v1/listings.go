@@ -11,39 +11,40 @@ import (
 )
 
 // GetMessagesHandler handles requests for listing notification messages for a user.
-func (a API) GetMessagesHandler(ctx echo.Context) error {
+func (a API) GetMessagesHandler(c echo.Context) error {
 	var err error
+	ctx := c.Request().Context()
 
 	// Extract and validate the user query parameter.
-	user, err := query.ValidatedQueryParam(ctx, "user", "required")
+	user, err := query.ValidatedQueryParam(c, "user", "required")
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: "missing required query parameter: user",
 		})
 	}
 
 	// Extract and validate the limit query parameter.
 	defaultLimit := uint64(0)
-	limit, err := query.ValidateUIntQueryParam(ctx, "limit", &defaultLimit)
+	limit, err := query.ValidateUIntQueryParam(c, "limit", &defaultLimit)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: err.Error(),
 		})
 	}
 
 	// Extract and validate the offset query parameter.
 	defaultOffset := uint64(0)
-	offset, err := query.ValidateUIntQueryParam(ctx, "offset", &defaultOffset)
+	offset, err := query.ValidateUIntQueryParam(c, "offset", &defaultOffset)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: err.Error(),
 		})
 	}
 
 	// Extract and validate the seen query parameter.
-	seen, err := query.ValidateBoolPQueryParam(ctx, "seen")
+	seen, err := query.ValidateBoolPQueryParam(c, "seen")
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: err.Error(),
 		})
 	}
@@ -51,9 +52,9 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 	// Extract and validate the sort_dir query parameter.
 	defaultSortOrder := query.SortOrderDescending
 	sortOrderParam := query.NewSortOrderParam(&defaultSortOrder)
-	err = query.ValidateParseableParam(ctx, "sort_dir", sortOrderParam)
+	err = query.ValidateParseableParam(c, "sort_dir", sortOrderParam)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: err.Error(),
 		})
 	}
@@ -61,16 +62,16 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 	// Extract and validate the sort_field query parameter.
 	defaultSortField := query.V1ListingSortFieldTimestamp
 	sortFieldParam := query.NewV1ListingSortFieldParam(&defaultSortField)
-	err = query.ValidateParseableParam(ctx, "sort_field", sortFieldParam)
+	err = query.ValidateParseableParam(c, "sort_field", sortFieldParam)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: err.Error(),
 		})
 	}
 
 	// Extract and reformat the filter.
 	var notificationType string
-	filter := strings.ReplaceAll(strings.ToLower(ctx.QueryParam("filter")), " ", "_")
+	filter := strings.ReplaceAll(strings.ToLower(c.QueryParam("filter")), " ", "_")
 	if filter == "new" {
 		seen = new(bool)
 		*seen = false
@@ -96,24 +97,25 @@ func (a API) GetMessagesHandler(ctx echo.Context) error {
 		SortField:        *(sortFieldParam.GetValue().(*query.V1ListingSortField)),
 		NotificationType: notificationType,
 	}
-	listing, err := db.V1ListNotifications(tx, params)
+	listing, err := db.V1ListNotifications(ctx, tx, params)
 	if err != nil {
 		a.Echo.Logger.Error(err)
 		return err
 	}
 
-	return ctx.JSON(http.StatusOK, listing)
+	return c.JSON(http.StatusOK, listing)
 }
 
 // GetUnseenMessagesHandler handles requests for listing messages that haven't been marked as seen yet for a
 // user.
-func (a *API) GetUnseenMessagesHandler(ctx echo.Context) error {
+func (a *API) GetUnseenMessagesHandler(c echo.Context) error {
 	var err error
+	ctx := c.Request().Context()
 
 	// Extract and validate the user query parameter.
-	user, err := query.ValidatedQueryParam(ctx, "user", "required")
+	user, err := query.ValidatedQueryParam(c, "user", "required")
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: "missing required query parameter: user",
 		})
 	}
@@ -137,37 +139,38 @@ func (a *API) GetUnseenMessagesHandler(ctx echo.Context) error {
 		SortField:        query.V1ListingSortFieldTimestamp,
 		NotificationType: "",
 	}
-	listing, err := db.V1ListNotifications(tx, params)
+	listing, err := db.V1ListNotifications(ctx, tx, params)
 	if err != nil {
 		a.Echo.Logger.Error(err)
 		return err
 	}
 
-	return ctx.JSON(http.StatusOK, listing)
+	return c.JSON(http.StatusOK, listing)
 }
 
 // CountMessagesHandler handles requests for counting notification messages.
-func (a *API) CountMessagesHandler(ctx echo.Context) error {
+func (a *API) CountMessagesHandler(c echo.Context) error {
 	var err error
+	ctx := c.Request().Context()
 
 	// Extract and validate the user query parameter.
-	user, err := query.ValidatedQueryParam(ctx, "user", "required")
+	user, err := query.ValidatedQueryParam(c, "user", "required")
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: "missing required query parameter: user",
 		})
 	}
 
 	// Extract and validate the seen query parameter.
-	seen, err := query.ValidateBoolPQueryParam(ctx, "seen")
+	seen, err := query.ValidateBoolPQueryParam(c, "seen")
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, model.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{
 			Message: err.Error(),
 		})
 	}
 
 	// Extract and reformat the notification type filter.
-	notificationType := strings.ReplaceAll(strings.ToLower(ctx.QueryParam("filter")), " ", "_")
+	notificationType := strings.ReplaceAll(strings.ToLower(c.QueryParam("filter")), " ", "_")
 
 	// Start a transaction.
 	tx, err := a.DB.Begin()
@@ -183,11 +186,11 @@ func (a *API) CountMessagesHandler(ctx echo.Context) error {
 		Seen:             seen,
 		NotificationType: notificationType,
 	}
-	result, err := db.V1CountNotifications(tx, params)
+	result, err := db.V1CountNotifications(ctx, tx, params)
 	if err != nil {
 		a.Echo.Logger.Error(err)
 		return err
 	}
 
-	return ctx.JSON(http.StatusOK, result)
+	return c.JSON(http.StatusOK, result)
 }

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -10,7 +11,7 @@ import (
 )
 
 // GetNotificationTypeID returns the ID for the notification type with the given ID.
-func GetNotificationTypeID(tx *sql.Tx, name string) (string, error) {
+func GetNotificationTypeID(ctx context.Context, tx *sql.Tx, name string) (string, error) {
 	wrapMsg := "unable to get the notification type ID"
 
 	// Build the query.
@@ -24,7 +25,7 @@ func GetNotificationTypeID(tx *sql.Tx, name string) (string, error) {
 	}
 
 	// Query the database.
-	rows, err := tx.Query(query, args...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return "", errors.Wrap(err, wrapMsg)
 	}
@@ -44,7 +45,7 @@ func GetNotificationTypeID(tx *sql.Tx, name string) (string, error) {
 
 // GetNotificationTimestamp returns the timestamp for the notification with the given identifier if the notification
 // exists.
-func GetNotificationTimestamp(tx *sql.Tx, notificationID string) (*time.Time, error) {
+func GetNotificationTimestamp(ctx context.Context, tx *sql.Tx, notificationID string) (*time.Time, error) {
 	wrapMsg := fmt.Sprintf("unable to get the timestmp for notification %s", notificationID)
 
 	// Build the query.
@@ -58,7 +59,7 @@ func GetNotificationTimestamp(tx *sql.Tx, notificationID string) (*time.Time, er
 	}
 
 	// Query the database.
-	rows, err := tx.Query(query, args...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}
@@ -80,7 +81,7 @@ func GetNotificationTimestamp(tx *sql.Tx, notificationID string) (*time.Time, er
 
 // FilterMissingIDs returns the IDs in the given ID list that refer to notifications that either don't exist or were
 // not directed to the user with the given user ID.
-func FilterMissingIDs(tx *sql.Tx, userID string, ids []string) ([]string, error) {
+func FilterMissingIDs(ctx context.Context, tx *sql.Tx, userID string, ids []string) ([]string, error) {
 	wrapMsg := "error encountered while verifying notification IDs"
 
 	// Build the query.
@@ -95,7 +96,7 @@ func FilterMissingIDs(tx *sql.Tx, userID string, ids []string) ([]string, error)
 	}
 
 	// Query the database.
-	rows, err := tx.Query(query, args...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}

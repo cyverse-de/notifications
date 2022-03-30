@@ -17,3 +17,6 @@ vendor/
 
 # Swagger JSON
 swagger.json
+
+# temp files
+*.swp

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -70,7 +71,7 @@ type V1NotificationCountingParameters struct {
 }
 
 // v1CountNotifications counts the number of notifications matching a set of parameters.
-func v1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) (int, error) {
+func v1CountNotifications(ctx context.Context, tx *sql.Tx, params *V1NotificationCountingParameters) (int, error) {
 
 	// Begin building the query.
 	queryBuilder := psql.Select().
@@ -99,7 +100,7 @@ func v1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) 
 
 	// Query the database and extract the count.
 	var result int
-	row := tx.QueryRow(query, args...)
+	row := tx.QueryRowContext(ctx, query, args...)
 	err = row.Scan(&result)
 	if err != nil {
 		return 0, err
@@ -109,12 +110,13 @@ func v1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) 
 }
 
 // V1ListNotifications lists notifications for a user.
-func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*model.V1NotificationListing, error) {
+func V1ListNotifications(ctx context.Context, tx *sql.Tx, params *V1NotificationListingParameters) (*model.V1NotificationListing, error) {
 	wrapMsg := "unable to obtain the notification listing"
 
 	// Obtain the total number of unseen messages for the user.
 	seenFlag := false
 	unseenCount, err := v1CountNotifications(
+		ctx,
 		tx,
 		&V1NotificationCountingParameters{
 			Seen:             &seenFlag,
@@ -173,7 +175,7 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 	}
 
 	// Query the database.
-	rows, err := tx.Query(query, args...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}
@@ -211,8 +213,8 @@ func V1ListNotifications(tx *sql.Tx, params *V1NotificationListingParameters) (*
 }
 
 // V1CountNotifications counts notifications for a user.
-func V1CountNotifications(tx *sql.Tx, params *V1NotificationCountingParameters) (*model.V1NotificationCounts, error) {
-	count, err := v1CountNotifications(tx, params)
+func V1CountNotifications(ctx context.Context, tx *sql.Tx, params *V1NotificationCountingParameters) (*model.V1NotificationCounts, error) {
+	count, err := v1CountNotifications(ctx, tx, params)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to obtain the notification counts")
 	}
@@ -380,7 +382,7 @@ func v2ApplySortOrder(queryBuilder sq.SelectBuilder, sortOrder query.SortOrder) 
 }
 
 // v2GetListing returns an acutal notification listing for version 2 of the API.
-func v2GetListing(tx *sql.Tx, params *V2NotificationListingParameters) ([]*model.Notification, error) {
+func v2GetListing(ctx context.Context, tx *sql.Tx, params *V2NotificationListingParameters) ([]*model.Notification, error) {
 
 	// Begin building the query.
 	listingQueryBuilder := v2ListNotificationsBaseQuery(params).
@@ -426,7 +428,7 @@ func v2GetListing(tx *sql.Tx, params *V2NotificationListingParameters) ([]*model
 	)
 
 	// Obtain the result set for the listing.
-	listingRows, err := tx.Query(listingQuery, listingQueryArgs...)
+	listingRows, err := tx.QueryContext(ctx, listingQuery, listingQueryArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -460,13 +462,13 @@ func v2GetListing(tx *sql.Tx, params *V2NotificationListingParameters) ([]*model
 
 // v2GetNotificationCount determines the total number of notifications that match a notification listing for version 2
 // of the API, not considering paging parameters.
-func v2GetNotificationCount(tx *sql.Tx, params *V2NotificationListingParameters) (int, error) {
+func v2GetNotificationCount(ctx context.Context, tx *sql.Tx, params *V2NotificationListingParameters) (int, error) {
 	var total int
 	countQuery, countQueryArgs, err := v2ListNotificationsBaseQuery(params).Column("count(*) AS count").ToSql()
 	if err != nil {
 		return 0, err
 	}
-	err = tx.QueryRow(countQuery, countQueryArgs...).Scan(&total)
+	err = tx.QueryRowContext(ctx, countQuery, countQueryArgs...).Scan(&total)
 	if err != nil {
 		return 0, err
 	}
@@ -563,21 +565,21 @@ func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (stri
 }
 
 // V2ListNotifications lists notifications for a user.
-func V2ListNotifications(tx *sql.Tx, params *V2NotificationListingParameters) (*model.V2NotificationListing, error) {
+func V2ListNotifications(ctx context.Context, tx *sql.Tx, params *V2NotificationListingParameters) (*model.V2NotificationListing, error) {
 	wrapMsg := "unable to obtain the notification listing"
 	var err error
 
 	// Obtain the listing.
 	var listing []*model.Notification
 	if !params.CountOnly {
-		listing, err = v2GetListing(tx, params)
+		listing, err = v2GetListing(ctx, tx, params)
 		if err != nil {
 			return nil, errors.Wrap(err, wrapMsg)
 		}
 	}
 
 	// Obtain the count.
-	total, err := v2GetNotificationCount(tx, params)
+	total, err := v2GetNotificationCount(ctx, tx, params)
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}
@@ -601,7 +603,7 @@ func V2ListNotifications(tx *sql.Tx, params *V2NotificationListingParameters) (*
 }
 
 // GetNotification returns the notification with the given ID.
-func GetNotification(tx *sql.Tx, user string, id string) (*model.Notification, error) {
+func GetNotification(ctx context.Context, tx *sql.Tx, user string, id string) (*model.Notification, error) {
 	wrapMsg := "unable to look up the notification"
 
 	// Begin building the query.
@@ -623,7 +625,7 @@ func GetNotification(tx *sql.Tx, user string, id string) (*model.Notification, e
 	}
 
 	// Execute the query.
-	rows, err := tx.Query(query, args...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}

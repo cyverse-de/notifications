@@ -11,6 +11,7 @@ import (
 	"github.com/cyverse-de/notifications/model"
 	"github.com/labstack/echo/v4"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // fixTimestamp fixes a timestamp stored as a string in a map.
@@ -87,20 +88,24 @@ type OutboundRequest struct {
 
 // NotificationRequestHandler handles POST requests to the /notification endpoint.
 func (a API) NotificationRequestHandler(ctx echo.Context) error {
+	span := trace.SpanFromContext(ctx)
 	var err error
 
 	// Extract and validate the request body.
 	notificationRequest := new(model.V1NotificationRequest)
 	if err := ctx.Bind(notificationRequest); err != nil {
+		span.RecordError(err)
 		return ctx.JSON(http.StatusBadRequest, model.InvalidRequestBody(err))
 	}
 	if err = ctx.Validate(notificationRequest); err != nil {
+		span.RecordError(err)
 		return ctx.JSON(http.StatusBadRequest, model.InvalidRequestBody(err))
 	}
 
 	// Verify that we have the required values if an email was requested.
 	if notificationRequest.Email {
 		if err = validateEmailRequest(notificationRequest); err != nil {
+			span.RecordError(err)
 			return ctx.JSON(http.StatusBadRequest, model.InvalidRequestBody(err))
 		}
 	}
@@ -108,12 +113,14 @@ func (a API) NotificationRequestHandler(ctx echo.Context) error {
 	// Ensure that the analysis start date is in the correct format if it's present.
 	err = fixTimestamp(notificationRequest.Payload, "startdate")
 	if err != nil {
+		span.RecordError(err)
 		return ctx.JSON(http.StatusBadRequest, model.InvalidRequestBody(err))
 	}
 
 	// Ensure that the analysis end date is in the correct format if it's present.
 	err = fixTimestamp(notificationRequest.Payload, "enddate")
 	if err != nil {
+		span.RecordError(err)
 		return ctx.JSON(http.StatusBadRequest, model.InvalidRequestBody(err))
 	}
 
@@ -131,6 +138,7 @@ func (a API) NotificationRequestHandler(ctx echo.Context) error {
 	body, err := json.Marshal(outboundRequest)
 	if err != nil {
 		a.Echo.Logger.Errorf("unable to marshal outbound request: %s", err.Error())
+		span.RecordError(err)
 		return ctx.JSON(http.StatusInternalServerError, model.InternalError(err))
 	}
 
@@ -139,6 +147,7 @@ func (a API) NotificationRequestHandler(ctx echo.Context) error {
 	err = a.AMQPClient.PublishContextOpts(ctx.Request().Context(), routingKey, body, messaging.JSONPublishingOpts)
 	if err != nil {
 		a.Echo.Logger.Errorf("unable to publish outbound request: %s", err.Error())
+		span.RecordError(err)
 		return ctx.JSON(http.StatusInternalServerError, model.InternalError(err))
 	}
 

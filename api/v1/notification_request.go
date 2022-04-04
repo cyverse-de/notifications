@@ -88,7 +88,7 @@ type OutboundRequest struct {
 
 // NotificationRequestHandler handles POST requests to the /notification endpoint.
 func (a API) NotificationRequestHandler(ctx echo.Context) error {
-	span := trace.SpanFromContext(ctx)
+	span := trace.SpanFromContext(ctx.Request().Context())
 	var err error
 
 	// Extract and validate the request body.

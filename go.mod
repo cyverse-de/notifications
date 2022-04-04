@@ -8,6 +8,7 @@ require (
 	github.com/cyverse-de/configurate v0.0.0-20200527185205-4e1e92866cee
 	github.com/cyverse-de/dbutil v1.0.1
 	github.com/cyverse-de/echo-middleware/v2 v2.0.2
+	github.com/cyverse-de/go-mod/otelutils v0.0.1
 	github.com/cyverse-de/messaging/v9 v9.1.4
 	github.com/go-playground/validator/v10 v10.10.0
 	github.com/labstack/echo/v4 v4.7.2
@@ -20,9 +21,6 @@ require (
 	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/viper v1.10.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.31.0
-	go.opentelemetry.io/otel v1.6.1
-	go.opentelemetry.io/otel/exporters/jaeger v1.6.1
-	go.opentelemetry.io/otel/sdk v1.6.1
 	go.opentelemetry.io/otel/trace v1.6.1
 	golang.org/x/sys v0.0.0-20220330033206-e17cdc41300f // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect

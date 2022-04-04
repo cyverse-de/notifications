@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/DavidGamba/go-getoptions"
 	"github.com/cyverse-de/configurate"
 	"github.com/cyverse-de/echo-middleware/v2/redoc"
+	"github.com/cyverse-de/go-mod/otelutils"
 	"github.com/cyverse-de/messaging/v9"
 	"github.com/cyverse-de/notifications/api"
 	"github.com/cyverse-de/notifications/common"
@@ -20,15 +20,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/jaeger"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	tracesdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 
 	_ "github.com/lib/pq"
 )
+
+const serviceName = "notifications"
 
 // commandLineOptionValues represents the values of the options that were passed on the command line when this
 // service was invoked.
@@ -36,24 +32,6 @@ type commandLineOptionValues struct {
 	Config string
 	Port   int
 	Debug  bool
-}
-
-func jaegerTracerProvider(url string) (*tracesdk.TracerProvider, error) {
-	// Create the Jaeger exporter
-	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(url)))
-	if err != nil {
-		return nil, err
-	}
-
-	tp := tracesdk.NewTracerProvider(
-		tracesdk.WithBatcher(exp),
-		tracesdk.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("notifications"),
-		)),
-	)
-
-	return tp, nil
 }
 
 // parseCommandLine parses the command line and returns an options structure containing command-line options and
@@ -110,8 +88,8 @@ func buildLoggerEntry(optionValues *commandLineOptionValues) *logrus.Entry {
 
 	// Return the custom log entry.
 	return logrus.WithFields(logrus.Fields{
-		"service": "notifications",
-		"art-id":  "notifications",
+		"service": serviceName,
+		"art-id":  serviceName,
 		"group":   "org.cyverse",
 	})
 }
@@ -147,39 +125,14 @@ func createMessagingClient(amqpSettings *common.AMQPSettings) (*messaging.Client
 }
 
 func main() {
-	var tracerProvider *tracesdk.TracerProvider
 	optionValues := parseCommandLine()
 
 	log := buildLoggerEntry(optionValues)
 
-	otelTracesExporter := os.Getenv("OTEL_TRACES_EXPORTER")
-	if otelTracesExporter == "jaeger" {
-		jaegerEndpoint := os.Getenv("OTEL_EXPORTER_JAEGER_ENDPOINT")
-		if jaegerEndpoint == "" {
-			log.Warn("Jaeger set as OpenTelemetry trace exporter, but no Jaeger endpoint configured.")
-		} else {
-			tp, err := jaegerTracerProvider(jaegerEndpoint)
-			if err != nil {
-				log.Fatal(err)
-			}
-			tracerProvider = tp
-			otel.SetTracerProvider(tp)
-			otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-		}
-	}
-
-	if tracerProvider != nil {
-		tracerCtx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		defer func(tracerContext context.Context) {
-			ctx, cancel := context.WithTimeout(tracerContext, time.Second*5)
-			defer cancel()
-			if err := tracerProvider.Shutdown(ctx); err != nil {
-				log.Fatal(err)
-			}
-		}(tracerCtx)
-	}
+	var tracerCtx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	shutdown := otelutils.TracerProviderFromEnv(tracerCtx, serviceName, func(e error) { log.Fatal(e) })
+	defer shutdown()
 
 	// Create the web server.
 	e := echo.New()
@@ -191,7 +144,7 @@ func main() {
 	e.Validator = &CustomValidator{validator: validator.New()}
 
 	// Add middleware.
-	e.Use(otelecho.Middleware("notifications"))
+	e.Use(otelecho.Middleware(serviceName))
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(redoc.Serve(redoc.Opts{Title: "DE Notifications API Documentation"}))
@@ -237,7 +190,7 @@ func main() {
 		AMQPSettings: amqpSettings,
 		AMQPClient:   amqpClient,
 		DB:           db,
-		Service:      "notifications",
+		Service:      serviceName,
 		Title:        serviceInfo.Title,
 		Version:      serviceInfo.Version,
 	}

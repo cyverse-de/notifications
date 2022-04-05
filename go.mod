@@ -8,7 +8,7 @@ require (
 	github.com/cyverse-de/configurate v0.0.0-20200527185205-4e1e92866cee
 	github.com/cyverse-de/dbutil v1.0.1
 	github.com/cyverse-de/echo-middleware/v2 v2.0.2
-	github.com/cyverse-de/go-mod/otelutils v0.0.1
+	github.com/cyverse-de/go-mod/otelutils v0.0.2
 	github.com/cyverse-de/messaging/v9 v9.1.5
 	github.com/go-playground/validator/v10 v10.10.0
 	github.com/labstack/echo/v4 v4.7.2

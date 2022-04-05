@@ -109,6 +109,8 @@ github.com/cyverse-de/echo-middleware/v2 v2.0.2 h1:dgM4DElzizj4uaFnsx6XFT9uBdPoZ
 github.com/cyverse-de/echo-middleware/v2 v2.0.2/go.mod h1:gaBdHDbUbr6HwV2Ve8SMLxc0xFv+dbL1gyN6Tik4BT0=
 github.com/cyverse-de/go-mod/otelutils v0.0.1 h1:DAkj2tn8umxM7j9+zokrsQK/q5HTWQT8YjuE1+4xruE=
 github.com/cyverse-de/go-mod/otelutils v0.0.1/go.mod h1:8P2jRGnvUsH4qtyVP0W6KiV5iSr102pLkzKFgkYJ4og=
+github.com/cyverse-de/go-mod/otelutils v0.0.2 h1:7O3jWQgf+PIIACSwtQM5SNtn6xTxxaLIUW6kjEKUpHM=
+github.com/cyverse-de/go-mod/otelutils v0.0.2/go.mod h1:8P2jRGnvUsH4qtyVP0W6KiV5iSr102pLkzKFgkYJ4og=
 github.com/cyverse-de/messaging/v9 v9.1.4 h1:DRMqWWT6nAGAnCk2Ajcikm13CJimttgQ5ClrvEA5UNw=
 github.com/cyverse-de/messaging/v9 v9.1.4/go.mod h1:bGZRCqilJTPBmWrgsyuupi3KRgkjQNs8yYNxZWZh8DI=
 github.com/cyverse-de/messaging/v9 v9.1.5 h1:OWI2iCKID2ZDFPRFXj8jaiP0Ef/RxQfMNcklF4cRFLo=

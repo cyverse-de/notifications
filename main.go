@@ -109,7 +109,7 @@ func createMessagingClient(amqpSettings *common.AMQPSettings) (*messaging.Client
 	wrapMsg := "unable to create the messaging client"
 
 	// Create the messaging client.
-	client, err := messaging.NewClient(amqpSettings.URI, false)
+	client, err := messaging.NewClient(amqpSettings.URI, true)
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}

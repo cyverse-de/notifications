@@ -538,13 +538,6 @@ func runBoundaryIDQuery(params *runBoundaryIDQueryParams) (string, error) {
 	return id, nil
 }
 
-// boundaryIDFinder defines an interface for obtaining the IDs of messages just beyond the boundaries of the current
-// page. There are several cases that we need to account for, and there will be one implementation of this interface
-// for each case.
-type boundaryIDFinder interface {
-	GetBoundaryIDs() (string, string, error)
-}
-
 // v2GetBoundaryIDs obtains the IDs of the messages just beyond the boundaries of the current page.
 func v2GetBoundaryIDs(tx *sql.Tx, params *V2NotificationListingParameters) (string, string, error) {
 

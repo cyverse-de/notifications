@@ -89,7 +89,9 @@ func (a *API) GetMessagesHandler(c echo.Context) error {
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Determine the before timestamp for the request.
 	var beforeTimestamp *time.Time
@@ -169,7 +171,9 @@ func (a *API) GetMessageHandler(ctx echo.Context) error {
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Get the notification.
 	notification, err := db.GetNotification(ctx.Request().Context(), tx, user, id)

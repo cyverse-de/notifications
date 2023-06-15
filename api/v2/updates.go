@@ -52,7 +52,9 @@ func (a API) updateMultipleMessages(
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Look up the user ID.
 	userID, err := db.GetUserID(ctx, tx, user)
@@ -130,7 +132,9 @@ func (a *API) updateSingleMessage(
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Look up the user ID.
 	userID, err := db.GetUserID(ctx, tx, user)

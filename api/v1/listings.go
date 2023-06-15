@@ -85,7 +85,9 @@ func (a API) GetMessagesHandler(c echo.Context) error {
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Obtain the listing.
 	params := &db.V1NotificationListingParameters{
@@ -126,7 +128,9 @@ func (a *API) GetUnseenMessagesHandler(c echo.Context) error {
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Obtain the listing.
 	seen := false
@@ -178,7 +182,9 @@ func (a *API) CountMessagesHandler(c echo.Context) error {
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Obtain the counts.
 	params := &db.V1NotificationCountingParameters{

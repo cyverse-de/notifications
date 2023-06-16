@@ -25,7 +25,7 @@ func FixTimestamp(original string) (string, error) {
 	}
 
 	// If the original already appears to be an epoch time, simply return it.
-	epochRegexp := regexp.MustCompile("^\\d+$")
+	epochRegexp := regexp.MustCompile(`^\d+$`)
 	if epochRegexp.MatchString(original) {
 		return original, nil
 	}

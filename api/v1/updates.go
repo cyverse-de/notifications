@@ -37,7 +37,9 @@ func (a *API) MarkMessagesAsSeen(c echo.Context) error {
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Look up the user ID.
 	userID, err := db.GetUserID(ctx, tx, user)
@@ -94,7 +96,9 @@ func (a *API) MarkAllMessagesAsSeen(c echo.Context) error {
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Obtain the user ID.
 	userID, err := db.GetUserID(ctx, tx, usernameWrapper.User)
@@ -160,7 +164,9 @@ func (a *API) DeleteMessages(c echo.Context) error {
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Look up the user ID.
 	userID, err := db.GetUserID(ctx, tx, user)
@@ -227,7 +233,9 @@ func (a *API) DeleteMatchingMessages(c echo.Context) error {
 		a.Echo.Logger.Error(err)
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		err = tx.Rollback()
+	}()
 
 	// Look up the user ID.
 	userID, err := db.GetUserID(ctx, tx, user)

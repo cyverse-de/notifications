@@ -51,15 +51,7 @@ spec:
               memory: "256Mi"
           env:
             - name: OTEL_TRACES_EXPORTER
-              valueFrom:
-                secretKeyRef:
-                  name: configs
-                  key: OTEL_TRACES_EXPORTER
-            - name: OTEL_EXPORTER_JAEGER_ENDPOINT
-              valueFrom:
-                secretKeyRef:
-                  name: configs
-                  key: OTEL_EXPORTER_JAEGER_HTTP_ENDPOINT
+              value: none
           args:
             - --config
             - /etc/iplant/de/jobservices.yml

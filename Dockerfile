@@ -21,6 +21,7 @@ FROM scratch
 
 WORKDIR /app
 
+COPY --from=build-root /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=build-root /build/notifications /bin/notifications
 COPY --from=build-root /build/swagger.json swagger.json
 

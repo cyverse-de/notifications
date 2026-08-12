@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/DavidGamba/go-getoptions"
 	"github.com/cyverse-de/configurate"
@@ -19,6 +20,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 
@@ -125,6 +127,35 @@ func createMessagingClient(amqpSettings *common.AMQPSettings) (*messaging.Client
 	return client, nil
 }
 
+// requiredConfigKeys lists the settings that the service can't run correctly without. Only
+// `amqp.uri` has a built-in default, so the rest silently resolve to the empty string when they're
+// absent from the configuration file, and the config file itself is optional.
+var requiredConfigKeys = []string{
+	"amqp.uri",
+	"amqp.exchange.name",
+	"amqp.exchange.type",
+	"notifications.db.uri",
+	"email.request",
+}
+
+// validateConfig returns an error naming every required setting that's missing from the
+// configuration. Every missing setting is reported at once so that a misconfigured deployment can
+// be corrected in a single pass.
+func validateConfig(cfg *viper.Viper) error {
+	var missing []string
+	for _, key := range requiredConfigKeys {
+		if strings.TrimSpace(cfg.GetString(key)) == "" {
+			missing = append(missing, key)
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required configuration settings: %s", strings.Join(missing, ", "))
+	}
+
+	return nil
+}
+
 func main() {
 	optionValues := parseCommandLine()
 
@@ -162,6 +193,12 @@ func main() {
 	cfg, err := configurate.InitDefaults(optionValues.Config, configurate.JobServicesDefaults)
 	if err != nil {
 		e.Logger.Fatalf("unable to load the configuration file: %s", err.Error())
+	}
+
+	// Check the configuration before anything tries to connect, so that a missing setting is
+	// reported as a startup failure rather than surfacing later as a connection or delivery error.
+	if err = validateConfig(cfg); err != nil {
+		e.Logger.Fatalf("invalid configuration: %s", err.Error())
 	}
 
 	// Retrieve the AMQP settings.

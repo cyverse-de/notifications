@@ -3,6 +3,7 @@ module github.com/cyverse-de/notifications
 go 1.26
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DavidGamba/go-getoptions v0.30.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/cyverse-de/configurate v0.0.0-20220113221928-13d34aae3f0f

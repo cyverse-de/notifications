@@ -13,6 +13,7 @@ import (
 	"github.com/cyverse-de/notifications/api"
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/db"
+	"github.com/cyverse-de/notifications/recorder"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -197,6 +198,25 @@ func main() {
 
 	// Register the handlers.
 	a.RegisterHandlers()
+
+	// Record the notification events that the v1 API publishes. The consumer gets its own
+	// connection because the messaging client dedicates a connection to listening.
+	e.Logger.Info("starting the event recorder")
+	consumerClient, err := messaging.NewClient(amqpSettings.URI, true)
+	if err != nil {
+		e.Logger.Fatalf("unable to create the consumer messaging client: %s", err.Error())
+	}
+	defer consumerClient.Close()
+
+	consumer := recorder.NewConsumer(
+		consumerClient,
+		amqpSettings,
+		cfg.GetString("email.request"),
+		recorder.New(recorder.NewDatabaseClient(db), amqpClient),
+	)
+	if err = consumer.Listen(); err != nil {
+		e.Logger.Fatalf("unable to start recording notification events: %s", err.Error())
+	}
 
 	// Start the service.
 	e.Logger.Info("starting the service")

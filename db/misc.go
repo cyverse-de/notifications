@@ -29,7 +29,7 @@ func GetNotificationTypeID(ctx context.Context, tx *sql.Tx, name string) (string
 	if err != nil {
 		return "", errors.Wrap(err, wrapMsg)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// There should be at most one result; it's not an error if there are no results.
 	var notificationTypeID string
@@ -63,7 +63,7 @@ func GetNotificationTimestamp(ctx context.Context, tx *sql.Tx, notificationID st
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// There should be at most one result; it's not an error if there are no results.
 	if rows.Next() {
@@ -100,7 +100,7 @@ func FilterMissingIDs(ctx context.Context, tx *sql.Tx, userID string, ids []stri
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// Load the list of extant notification IDs.
 	extantIDs := make([]string, 0)

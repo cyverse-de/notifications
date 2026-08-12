@@ -9,10 +9,11 @@ import (
 	"github.com/cyverse-de/configurate"
 	"github.com/cyverse-de/echo-middleware/v2/redoc"
 	"github.com/cyverse-de/go-mod/otelutils"
-	"github.com/cyverse-de/messaging/v9"
+	"github.com/cyverse-de/messaging/v12"
 	"github.com/cyverse-de/notifications/api"
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/db"
+	"github.com/cyverse-de/notifications/recorder"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -198,8 +199,6 @@ func main() {
 	// Register the handlers.
 	a.RegisterHandlers()
 
-<<<<<<< Updated upstream
-=======
 	// Record the notification events that the v1 API publishes. The consumer gets its own
 	// connection because the messaging client dedicates a connection to listening, and the recorder
 	// gets a third one so that a failed publish on its behalf doesn't reconnect the connection the
@@ -228,7 +227,6 @@ func main() {
 		e.Logger.Fatalf("unable to start recording notification events: %s", err.Error())
 	}
 
->>>>>>> Stashed changes
 	// Start the service.
 	e.Logger.Info("starting the service")
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", optionValues.Port)))

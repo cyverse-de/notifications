@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/cyverse-de/messaging/v9"
+	"github.com/cyverse-de/messaging/v12"
 	v1 "github.com/cyverse-de/notifications/api/v1"
 	v2 "github.com/cyverse-de/notifications/api/v2"
 	"github.com/cyverse-de/notifications/common"

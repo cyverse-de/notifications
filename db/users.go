@@ -9,8 +9,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-<<<<<<< Updated upstream
-=======
 // AddUser adds a user to the `users` table in the notifications database, returning the ID
 // assigned to the user. Adding a user who is already in the table returns that user's existing ID.
 func AddUser(ctx context.Context, tx *sql.Tx, user string) (string, error) {
@@ -68,7 +66,6 @@ func GetOrCreateUserID(ctx context.Context, tx *sql.Tx, user string) (string, er
 	return "", errors.Wrap(err, wrapMsg)
 }
 
->>>>>>> Stashed changes
 // GetUserID returns the ID for a user or the empty string if the user isn't in the database.
 func GetUserID(ctx context.Context, tx *sql.Tx, username string) (string, error) {
 	wrapMsg := fmt.Sprintf("unable to look up the username for %s", username)
@@ -88,7 +85,7 @@ func GetUserID(ctx context.Context, tx *sql.Tx, username string) (string, error)
 	if err != nil {
 		return "", errors.Wrap(err, wrapMsg)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// There should be at most one result; it's not an error if there are no results.
 	var userID string

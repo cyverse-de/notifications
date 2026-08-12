@@ -6,46 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cyverse-de/messaging/v9"
+	"github.com/cyverse-de/messaging/v12"
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/model"
 	"github.com/labstack/echo/v4"
-	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/trace"
 )
-
-// fixTimestamp fixes a timestamp stored as a string in a map.
-func fixTimestamp(m map[string]interface{}, k string) error {
-	wrapMsg := fmt.Sprintf("unable to fix the timestamp in key '%s'", k)
-
-	// Extract the current value.
-	v, present := m[k]
-	if !present {
-		return nil
-	}
-
-	// Convert the value to a string. We only have to check types used by the json package.
-	var stringValue string
-	switch val := v.(type) {
-	case string:
-		stringValue = val
-	case float64:
-		stringValue = fmt.Sprintf("%d", int64(val))
-	default:
-		return fmt.Errorf("%s: %s", wrapMsg, "invalid data type")
-	}
-
-	// Convert the timestamp to milliseconds since the epoch.
-	convertedValue, err := common.FixTimestamp(stringValue)
-	if err != nil {
-		return errors.Wrap(err, wrapMsg)
-	}
-
-	// Directly update the value in the map.
-	m[k] = convertedValue
-
-	return nil
-}
 
 // validateEmailRequest verifies that we have the required fields if an email was requested.
 func validateEmailRequest(request *model.V1NotificationRequest) error {
@@ -111,14 +77,14 @@ func (a API) NotificationRequestHandler(ctx echo.Context) error {
 	}
 
 	// Ensure that the analysis start date is in the correct format if it's present.
-	err = fixTimestamp(notificationRequest.Payload, "startdate")
+	err = common.FixTimestampInMap(notificationRequest.Payload, "startdate")
 	if err != nil {
 		span.RecordError(err)
 		return ctx.JSON(http.StatusBadRequest, model.InvalidRequestBody(err))
 	}
 
 	// Ensure that the analysis end date is in the correct format if it's present.
-	err = fixTimestamp(notificationRequest.Payload, "enddate")
+	err = common.FixTimestampInMap(notificationRequest.Payload, "enddate")
 	if err != nil {
 		span.RecordError(err)
 		return ctx.JSON(http.StatusBadRequest, model.InvalidRequestBody(err))

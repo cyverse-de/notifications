@@ -69,8 +69,10 @@ type VersionRootResponse struct {
 // V1NotificationRequest describes an incoming request to publish a notification.
 type V1NotificationRequest struct {
 
-	// The notification type.
-	Type string `json:"type" validate:"required"`
+	// The notification type. The length limit matches the database column it's eventually stored
+	// in, and periods are excluded because the type becomes one component of the routing key that
+	// the recorder parses it back out of.
+	Type string `json:"type" validate:"required,max=32,excludesall=."`
 
 	// The username of the notification recipient.
 	User string `json:"user" validate:"required"`

@@ -198,6 +198,37 @@ func main() {
 	// Register the handlers.
 	a.RegisterHandlers()
 
+<<<<<<< Updated upstream
+=======
+	// Record the notification events that the v1 API publishes. The consumer gets its own
+	// connection because the messaging client dedicates a connection to listening, and the recorder
+	// gets a third one so that a failed publish on its behalf doesn't reconnect the connection the
+	// API publishes on.
+	e.Logger.Info("starting the event recorder")
+	consumerClient, err := messaging.NewClient(amqpSettings.URI, true)
+	if err != nil {
+		e.Logger.Fatalf("unable to create the consumer messaging client: %s", err.Error())
+	}
+	defer consumerClient.Close()
+
+	recorderClient, err := createMessagingClient(amqpSettings)
+	if err != nil {
+		e.Logger.Fatalf("unable to create the recorder messaging client: %s", err.Error())
+	}
+	defer recorderClient.Close()
+
+	consumer := recorder.NewConsumer(
+		consumerClient,
+		recorderClient,
+		amqpSettings,
+		cfg.GetString("email.request"),
+		recorder.New(recorder.NewDatabaseClient(db), recorderClient),
+	)
+	if err = consumer.Listen(); err != nil {
+		e.Logger.Fatalf("unable to start recording notification events: %s", err.Error())
+	}
+
+>>>>>>> Stashed changes
 	// Start the service.
 	e.Logger.Info("starting the service")
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", optionValues.Port)))

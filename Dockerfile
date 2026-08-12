@@ -25,6 +25,9 @@ COPY --from=build-root /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=build-root /build/notifications /bin/notifications
 COPY --from=build-root /build/swagger.json swagger.json
 
+# Email templates, absorbed from de-mailer. Resolved relative to WORKDIR at runtime.
+COPY --from=build-root /build/templates templates
+
 ENTRYPOINT ["notifications"]
 
 EXPOSE 8080

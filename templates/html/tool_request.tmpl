@@ -1,0 +1,17 @@
+{{ template "header" . }}
+
+<p>{{.username}} has requested the installation of a new tool in the <a href={{ .DEToolRequestLink}} target="_blank">{{.environment}}</a>
+environment.</p>
+
+<p><b>Request details:</b></p>
+
+<pre>
+{{if .Name}}<p><b>Name</b>: {{.Name}}</p>{{- end}}
+{{if .Description}}<p><b>Description</b>: {{.Description}}</p>{{- end}}
+{{if .Documentation}}<p><b>Documentation</b>: {{.Documentation}}</p>{{- end}}
+{{if .Source}}<p><b>Source</b>: {{.Source}}</p>{{- end}}
+{{if .TestData}}<p><b>Test Data</b>: {{.TestData}}</p>{{- end}}
+{{if .SubmittedBy}}<p><b>Submitted By</b>: {{.SubmittedBy}}</p>{{- end}}
+</pre>
+
+{{ template "footer" . }}

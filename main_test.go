@@ -16,6 +16,9 @@ func completeConfig() map[string]string {
 		"amqp.exchange.type":   "topic",
 		"notifications.db.uri": "postgresql://guest:guest@dedb:5432/notifications?sslmode=disable",
 		"email.request":        "support@example.org",
+		"email.fromAddress":    "noreply@example.org",
+		"email.smtpHost":       "local-exim",
+		"de.base":              "https://de.example.org",
 	}
 }
 
@@ -49,6 +52,13 @@ func TestValidateConfig(t *testing.T) {
 			name:      "blank support email address",
 			overrides: map[string]string{"email.request": "   "},
 			missing:   []string{"email.request"},
+		},
+		{
+			// Absorbed from de-mailer: without these the service starts and then fails
+			// every send, rather than refusing to start.
+			name:    "missing email delivery settings",
+			omit:    []string{"email.fromAddress", "email.smtpHost", "de.base"},
+			missing: []string{"email.fromAddress", "email.smtpHost", "de.base"},
 		},
 		{
 			name:    "empty configuration",

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/cyverse-de/messaging/v12"
@@ -38,6 +39,7 @@ type Consumer struct {
 	amqpSettings *common.AMQPSettings
 	supportEmail string
 	recorder     *Recorder
+	inFlight     atomic.Int64
 }
 
 // NewConsumer creates a consumer that records deliveries from the event queue. The AMQP client is
@@ -139,8 +141,27 @@ func (c *Consumer) logDelivery(description string, delivery amqp.Delivery) {
 	log.Debugf("%s: %s; %s", description, delivery.RoutingKey, delivery.Body)
 }
 
+// Drain waits up to timeout for in-flight deliveries to finish. Recorder.Record publishes the
+// email and UI messages after it commits, so closing the connections mid-delivery would leave a
+// recorded notification that the user is never pinged about.
+func (c *Consumer) Drain(timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for c.inFlight.Load() > 0 && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if n := c.inFlight.Load(); n > 0 {
+		log.Warnf(
+			"%d notification events still in flight after the %s drain window; "+
+				"any that already committed may not have their email or UI message published",
+			n, timeout,
+		)
+	}
+}
+
 // handleMessage handles an incoming AMQP message.
 func (c *Consumer) handleMessage(ctx context.Context, delivery amqp.Delivery) {
+	c.inFlight.Add(1)
+	defer c.inFlight.Add(-1)
 	defer c.recoverFromPanic(ctx, delivery)
 
 	category, updateType, err := c.parseRoutingKey(delivery.RoutingKey)

@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/DavidGamba/go-getoptions"
 	"github.com/cyverse-de/configurate"
@@ -14,6 +17,7 @@ import (
 	"github.com/cyverse-de/notifications/api"
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/db"
+	"github.com/cyverse-de/notifications/mailer"
 	"github.com/cyverse-de/notifications/recorder"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -136,6 +140,9 @@ var requiredConfigKeys = []string{
 	"amqp.exchange.type",
 	"notifications.db.uri",
 	"email.request",
+	"email.fromAddress",
+	"email.smtpHost",
+	"de.base",
 }
 
 // validateConfig returns an error naming every required setting that's missing from the
@@ -222,12 +229,33 @@ func main() {
 		e.Logger.Fatalf("service initialization failed: %s", err.Error())
 	}
 
+	// Build the outbound email processor, absorbed from the retired de-mailer service. Both
+	// the /mail endpoint and the email_requests consumer below drive it.
+	fromAddress := cfg.GetString("email.fromAddress")
+	emailProcessor := mailer.NewEmailProcessor(
+		mailer.NewEmailClient(cfg.GetString("email.smtpHost"), fromAddress),
+		mailer.DESettings{
+			Base:        cfg.GetString("de.base"),
+			Data:        cfg.GetString("de.data"),
+			Analyses:    cfg.GetString("de.analyses"),
+			Teams:       cfg.GetString("de.teams"),
+			Tools:       cfg.GetString("de.tools"),
+			Collections: cfg.GetString("de.collections"),
+			Apps:        cfg.GetString("de.apps"),
+			Admin:       cfg.GetString("de.admin"),
+			DOI:         cfg.GetString("de.doi"),
+			VICE:        cfg.GetString("de.vice"),
+		},
+		fromAddress,
+	)
+
 	// Define the primary API handler.
 	a := api.API{
 		Echo:         e,
 		AMQPSettings: amqpSettings,
 		AMQPClient:   amqpClient,
 		DB:           db,
+		Mailer:       emailProcessor,
 		Service:      serviceName,
 		Title:        serviceInfo.Title,
 		Version:      serviceInfo.Version,
@@ -239,19 +267,18 @@ func main() {
 	// Record the notification events that the v1 API publishes. The consumer gets its own
 	// connection because the messaging client dedicates a connection to listening, and the recorder
 	// gets a third one so that a failed publish on its behalf doesn't reconnect the connection the
-	// API publishes on.
+	// API publishes on. Both are closed by the ordered shutdown at the end of main rather than
+	// by defers, so that they outlive the mailer drain.
 	e.Logger.Info("starting the event recorder")
 	consumerClient, err := messaging.NewClient(amqpSettings.URI, true)
 	if err != nil {
 		e.Logger.Fatalf("unable to create the consumer messaging client: %s", err.Error())
 	}
-	defer consumerClient.Close()
 
 	recorderClient, err := createMessagingClient(amqpSettings)
 	if err != nil {
 		e.Logger.Fatalf("unable to create the recorder messaging client: %s", err.Error())
 	}
-	defer recorderClient.Close()
 
 	consumer := recorder.NewConsumer(
 		consumerClient,
@@ -264,7 +291,53 @@ func main() {
 		e.Logger.Fatalf("unable to start recording notification events: %s", err.Error())
 	}
 
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Send the email requests the recorder publishes. This gets a fourth connection rather
+	// than sharing the recorder's: shutdown drains and closes it on its own, which would stop
+	// the recorder too if they shared one. It starts in the background so a broker outage
+	// can't keep the HTTP transport from coming up; mailer.StartConsumer retries until the
+	// broker is reachable.
+	e.Logger.Info("starting the email request consumer")
+	mailerReady := make(chan *mailer.Consumer, 1)
+	go func() {
+		if c := mailer.StartConsumer(signalCtx, emailProcessor, amqpSettings); c != nil {
+			mailerReady <- c
+		}
+	}()
+
 	// Start the service.
 	e.Logger.Info("starting the service")
-	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", optionValues.Port)))
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- e.Start(fmt.Sprintf(":%d", optionValues.Port))
+	}()
+
+	select {
+	case err := <-serverErr:
+		e.Logger.Fatal(err)
+	case <-signalCtx.Done():
+	}
+
+	// Ordered shutdown: let in-flight AMQP handlers finish and ack (so already-sent emails
+	// aren't requeued and re-sent), close the connections, then drain HTTP.
+	e.Logger.Info("shutting down")
+	var mailConsumer *mailer.Consumer
+	select {
+	case mailConsumer = <-mailerReady:
+	default:
+	}
+	if mailConsumer != nil {
+		mailConsumer.Shutdown()
+	}
+	consumerClient.Close()
+	recorderClient.Close()
+	amqpClient.Close()
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
+	if err := e.Shutdown(shutdownCtx); err != nil {
+		e.Logger.Errorf("HTTP server shutdown: %s", err.Error())
+	}
 }

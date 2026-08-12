@@ -8,6 +8,7 @@ import (
 	v1 "github.com/cyverse-de/notifications/api/v1"
 	v2 "github.com/cyverse-de/notifications/api/v2"
 	"github.com/cyverse-de/notifications/common"
+	"github.com/cyverse-de/notifications/mailer"
 	"github.com/cyverse-de/notifications/model"
 	"github.com/labstack/echo/v4"
 )
@@ -18,6 +19,7 @@ type API struct {
 	AMQPSettings *common.AMQPSettings
 	AMQPClient   *messaging.Client
 	DB           *sql.DB
+	Mailer       *mailer.EmailProcessor
 	Service      string
 	Title        string
 	Version      string
@@ -36,6 +38,10 @@ func (a API) RootHandler(ctx echo.Context) error {
 // RegisterHandlers registers the supported request handlers.
 func (a API) RegisterHandlers() {
 	a.Echo.GET("/", a.RootHandler)
+
+	// Outbound email. Unversioned because it isn't part of the notifications API proper; it
+	// was absorbed from the retired de-mailer service, whose callers post to a bare base URL.
+	a.Echo.POST("/mail", a.EmailRequestHandler)
 
 	// Register the group for API version 1.
 	v1Group := a.Echo.Group("/v1")

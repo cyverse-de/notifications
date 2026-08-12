@@ -1,3 +1,7 @@
-run:
-  skip-files:
-  - ".../main_docs.go"
+version: "2"
+
+linters:
+  exclusions:
+    paths:
+      # Generated swagger documentation stubs.
+      - ".*main_docs\\.go$"

@@ -54,13 +54,14 @@ func (l Logger) Level() gommonlog.Lvl {
 // labstack/echo's Logger interface is ERROR. The least restrictive logging level that it supports is
 // DEBUG.
 func (l Logger) SetLevel(lvl gommonlog.Lvl) {
-	if lvl == gommonlog.ERROR {
+	switch lvl {
+	case gommonlog.ERROR:
 		l.Entry.Logger.SetLevel(logrus.ErrorLevel)
-	} else if lvl == gommonlog.WARN {
+	case gommonlog.WARN:
 		l.Entry.Logger.SetLevel(logrus.WarnLevel)
-	} else if lvl == gommonlog.INFO {
+	case gommonlog.INFO:
 		l.Entry.Logger.SetLevel(logrus.InfoLevel)
-	} else {
+	default:
 		l.Entry.Logger.SetLevel(logrus.DebugLevel)
 	}
 }

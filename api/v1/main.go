@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/cyverse-de/messaging/v9"
+	"github.com/cyverse-de/messaging/v12"
 	"github.com/cyverse-de/notifications/common"
 	"github.com/cyverse-de/notifications/model"
 	"github.com/labstack/echo/v4"

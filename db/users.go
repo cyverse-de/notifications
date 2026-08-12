@@ -28,7 +28,7 @@ func GetUserID(ctx context.Context, tx *sql.Tx, username string) (string, error)
 	if err != nil {
 		return "", errors.Wrap(err, wrapMsg)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// There should be at most one result; it's not an error if there are no results.
 	var userID string

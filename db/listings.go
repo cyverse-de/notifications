@@ -179,7 +179,7 @@ func V1ListNotifications(ctx context.Context, tx *sql.Tx, params *V1Notification
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// Build the listing from the result set.
 	var total int
@@ -432,7 +432,7 @@ func v2GetListing(ctx context.Context, tx *sql.Tx, params *V2NotificationListing
 	if err != nil {
 		return nil, err
 	}
-	defer listingRows.Close()
+	defer func() { _ = listingRows.Close() }()
 
 	// Build the listing from the result set.
 	listing := make([]*model.Notification, 0)
@@ -524,7 +524,7 @@ func runBoundaryIDQuery(params *runBoundaryIDQueryParams) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// Get the ID of the next message if applicable.
 	var id string
@@ -622,7 +622,7 @@ func GetNotification(ctx context.Context, tx *sql.Tx, user string, id string) (*
 	if err != nil {
 		return nil, errors.Wrap(err, wrapMsg)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// Extract the message from the result set; an error is not returned if there's no matching message.
 	var message *model.Notification

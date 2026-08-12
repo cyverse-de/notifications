@@ -1,0 +1,29 @@
+{
+  "deleted": false,
+  "email": true,
+  "email_template": "analysis_status_change",
+  "message": {
+    "id": "46ae63be-7030-4cdd-8eb9-66aa49fcf38b",
+    "text": "This is a test message",
+    "timestamp": "1594169999000"
+  },
+  "payload": {
+    "action": "job_status_change",
+    "analysisdescription": "some job description",
+    "analysisname": "some job",
+    "analysisresultsfolder": "/iplant/home/foo/analyses",
+    "analysisstartdate": "2020-07-07T17:59:59-07:00",
+    "analysisstatus": "Completed",
+    "description": "some job description",
+    "email_address": "sarahr@cyverse.org",
+    "name": "some job",
+    "resultfolderid": "/iplant/home/foo/analyses",
+    "startdate": "1594169999000",
+    "status": "Completed",
+    "user": "sarahr"
+  },
+  "seen": false,
+  "subject": "some job status changed",
+  "type": "analysis",
+  "user": "sarahr"
+}

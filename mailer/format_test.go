@@ -9,12 +9,13 @@ import (
 
 func TestFormatMessage(t *testing.T) {
 	tests := []struct {
-		name      string
-		template  string
-		values    string // JSON object with the template values
-		wantHTML  bool
-		wantCode  int // expected HTTP error code; 0 means no error expected
-		wantParts []string
+		name       string
+		template   string
+		values     string // JSON object with the template values
+		wantHTML   bool
+		wantCode   int // expected HTTP error code; 0 means no error expected
+		wantParts  []string
+		wantAbsent []string
 	}{
 		{
 			name:     "analysis status change",
@@ -31,7 +32,48 @@ func TestFormatMessage(t *testing.T) {
 			wantParts: []string{
 				"https://de.example.org/data/ds/example/home/analyses/foo",
 				"https://de.example.org/analyses/11111111-2222-3333-4444-555555555555",
+				"Analysis launch date:",
+				"2025",
 			},
+		},
+		{
+			// A publisher that sends the start date as a JSON number used to defeat the
+			// string-only extraction and render the epoch as the launch date.
+			name:     "analysis status change with a numeric start date",
+			template: "analysis_status_change",
+			values: `{
+				"analysisname": "my analysis",
+				"analysisstatus": "Completed",
+				"startdate": 1754800000000
+			}`,
+			wantHTML:   true,
+			wantParts:  []string{"Analysis launch date:", "2025"},
+			wantAbsent: []string{"1970"},
+		},
+		{
+			name:     "analysis status change with an unusable start date",
+			template: "analysis_status_change",
+			values: `{
+				"analysisname": "my analysis",
+				"analysisstatus": "Completed",
+				"startdate": "not a timestamp"
+			}`,
+			wantHTML:   true,
+			wantAbsent: []string{"Analysis launch date:", "1970"},
+		},
+		{
+			name:       "analysis status change without a start date",
+			template:   "analysis_status_change",
+			values:     `{"analysisname": "my analysis", "analysisstatus": "Completed"}`,
+			wantHTML:   true,
+			wantAbsent: []string{"Analysis launch date:", "1970"},
+		},
+		{
+			name:       "periodic notification with an unusable start date",
+			template:   "analysis_periodic_notification",
+			values:     `{"analysisname": "my analysis", "analysisstatus": "Running", "startdate": {}}`,
+			wantHTML:   true,
+			wantAbsent: []string{"Analysis launch date:", "1970"},
 		},
 		{
 			// Regression test: this template shipped with a malformed {{.DEToolsLink} action.
@@ -100,6 +142,20 @@ func TestFormatMessage(t *testing.T) {
 			wantCode: 400,
 		},
 		{
+			// The name is concatenated into a file path, so a traversal has to be rejected
+			// before anything outside the template directories can be parsed and mailed.
+			name:     "template name escaping the template directory",
+			template: "../../etc/passwd",
+			values:   `{}`,
+			wantCode: 400,
+		},
+		{
+			name:     "template name with a path separator",
+			template: "html/blank",
+			values:   `{}`,
+			wantCode: 400,
+		},
+		{
 			name:      "plain text template",
 			template:  "blank",
 			values:    `{"contents": "plain text body"}`,
@@ -160,6 +216,11 @@ func TestFormatMessage(t *testing.T) {
 			for _, part := range tt.wantParts {
 				if !strings.Contains(rendered, part) {
 					t.Errorf("expected output to contain %q; output:\n%s", part, rendered)
+				}
+			}
+			for _, part := range tt.wantAbsent {
+				if strings.Contains(rendered, part) {
+					t.Errorf("expected output not to contain %q; output:\n%s", part, rendered)
 				}
 			}
 		})

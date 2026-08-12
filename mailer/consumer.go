@@ -21,9 +21,6 @@ const QueueName = "email_requests"
 // prefetchCount bounds how many unacked deliveries the broker will hand this consumer at once.
 const prefetchCount = 100
 
-// drainTimeout is how long shutdown waits for in-flight deliveries to finish and ack.
-const drainTimeout = 20 * time.Second
-
 // Consumer consumes email requests from AMQP and processes them in-process.
 type Consumer struct {
 	client    *messaging.Client
@@ -76,8 +73,8 @@ func (c *Consumer) Close() {
 }
 
 // Shutdown drains in-flight deliveries and then closes the connection.
-func (c *Consumer) Shutdown() {
-	c.Drain(drainTimeout)
+func (c *Consumer) Shutdown(timeout time.Duration) {
+	c.Drain(timeout)
 	c.Close()
 }
 

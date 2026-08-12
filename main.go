@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,6 +33,21 @@ import (
 )
 
 const serviceName = "notifications"
+
+// The shutdown budget has to fit inside the pod's termination grace period, which the deployment
+// leaves at Kubernetes' 30 second default. The three drains run concurrently, so the worst case is
+// mailerReadyTimeout + drainTimeout rather than the sum of all of them.
+const (
+	// drainTimeout is how long each AMQP consumer gets to finish its in-flight deliveries.
+	drainTimeout = 15 * time.Second
+
+	// httpShutdownTimeout is how long the HTTP server gets to finish its in-flight requests.
+	httpShutdownTimeout = 10 * time.Second
+
+	// mailerReadyTimeout bounds the wait for the email request consumer to report whether it
+	// started, for the case where SIGTERM arrives while it's still retrying a broker connection.
+	mailerReadyTimeout = 5 * time.Second
+)
 
 // commandLineOptionValues represents the values of the options that were passed on the command line when this
 // service was invoked.
@@ -302,9 +318,9 @@ func main() {
 	e.Logger.Info("starting the email request consumer")
 	mailerReady := make(chan *mailer.Consumer, 1)
 	go func() {
-		if c := mailer.StartConsumer(signalCtx, emailProcessor, amqpSettings); c != nil {
-			mailerReady <- c
-		}
+		// The result is always sent, nil included, so that shutdown can tell "it never started"
+		// from "it hasn't reported yet" instead of racing this send and skipping the drain.
+		mailerReady <- mailer.StartConsumer(signalCtx, emailProcessor, amqpSettings)
 	}()
 
 	// Start the service.
@@ -320,24 +336,48 @@ func main() {
 	case <-signalCtx.Done():
 	}
 
-	// Ordered shutdown: let in-flight AMQP handlers finish and ack (so already-sent emails
-	// aren't requeued and re-sent), close the connections, then drain HTTP.
+	// Ordered shutdown: quiesce every producer of AMQP traffic before any connection closes.
+	// In-flight AMQP handlers finish and ack, so already-sent emails aren't requeued and re-sent,
+	// and in-flight HTTP requests finish publishing rather than failing on a closed connection.
+	// The drains run concurrently because they're independent and the total has to fit in the
+	// pod's termination grace period.
 	e.Logger.Info("shutting down")
-	var mailConsumer *mailer.Consumer
-	select {
-	case mailConsumer = <-mailerReady:
-	default:
-	}
-	if mailConsumer != nil {
-		mailConsumer.Shutdown()
-	}
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var mailConsumer *mailer.Consumer
+		select {
+		case mailConsumer = <-mailerReady:
+		case <-time.After(mailerReadyTimeout):
+			e.Logger.Warn("the email request consumer did not report that it started; skipping its drain")
+			return
+		}
+		if mailConsumer != nil {
+			mailConsumer.Shutdown(drainTimeout)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		consumer.Drain(drainTimeout)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), httpShutdownTimeout)
+		defer cancelShutdown()
+		if err := e.Shutdown(shutdownCtx); err != nil {
+			e.Logger.Errorf("HTTP server shutdown: %s", err.Error())
+		}
+	}()
+
+	wg.Wait()
+
 	consumerClient.Close()
 	recorderClient.Close()
 	amqpClient.Close()
-
-	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelShutdown()
-	if err := e.Shutdown(shutdownCtx); err != nil {
-		e.Logger.Errorf("HTTP server shutdown: %s", err.Error())
-	}
 }

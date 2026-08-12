@@ -3,8 +3,8 @@ package mailer
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"io"
+	"net/http"
 
 	"github.com/inbucket/html2text"
 	"gopkg.in/gomail.v2"
@@ -39,16 +39,18 @@ type Attachment struct {
 	Data     string // Base64-encoded file data
 }
 
-// Validate returns an error if the email request is invalid.
+// Validate returns an error if the email request is invalid. The errors are *HTTPError so that a
+// malformed request stays a 4xx once Process wraps them, rather than being reported as a server
+// fault the caller can't act on.
 func (r *FormattedEmailRequest) Validate() error {
 	if len(r.To) == 0 {
-		return fmt.Errorf("at least one destination email address must be provided")
+		return NewHTTPError(http.StatusBadRequest, "at least one destination email address must be provided")
 	}
 	if r.Subject == "" {
-		return fmt.Errorf("a message subject must be provided")
+		return NewHTTPError(http.StatusBadRequest, "a message subject must be provided")
 	}
 	if r.Body == "" {
-		return fmt.Errorf("a message body must be provided")
+		return NewHTTPError(http.StatusBadRequest, "a message body must be provided")
 	}
 	return nil
 }

@@ -55,6 +55,9 @@ func (p *EmailProcessor) Process(ctx context.Context, body []byte) error {
 	if err != nil {
 		return err
 	}
+	if emailReq.To == "" {
+		return NewHTTPError(http.StatusBadRequest, "a destination email address must be provided")
+	}
 	if emailReq.FromAddr == "" {
 		emailReq.FromAddr = p.fromAddress
 	}

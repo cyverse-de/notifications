@@ -89,6 +89,13 @@ func TestProcess(t *testing.T) {
 			wantCode: 400,
 		},
 		{
+			// An omitted recipient used to reach the SMTP dialer as a single empty address,
+			// which reported the missing field as a server fault.
+			name:     "missing destination address",
+			body:     `{"template":"blank","subject":"s","values":{"contents":"x"}}`,
+			wantCode: 400,
+		},
+		{
 			name:      "send failure propagates",
 			body:      `{"template":"blank","subject":"s","to":"user@example.org","values":{"contents":"x"}}`,
 			senderErr: sendFailure,

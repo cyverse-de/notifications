@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	text "text/template"
 	"time"
@@ -108,9 +109,18 @@ func addLinks(payload map[string]any, de DESettings) {
 	payload["DEPidRequestLink"] = de.Base + de.Admin + de.DOI
 }
 
+// templateNamePattern bounds a template name to the characters every shipped template uses. The
+// name is concatenated into a file path, so without this a name like "../../etc/something" would
+// escape the template directories and be rendered into an email.
+var templateNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
 // loadTemplate finds the named template, preferring the HTML version. The returned flag
 // reports whether the template that was found is HTML.
 func loadTemplate(name string) (Templater, bool, error) {
+	if !templateNamePattern.MatchString(name) {
+		return nil, false, NewHTTPError(http.StatusBadRequest, "invalid template name: %q", name)
+	}
+
 	htmlPath := htmlTemplateDir + name + ".tmpl"
 	textPath := textTemplateDir + name + ".tmpl"
 
@@ -133,21 +143,55 @@ func loadTemplate(name string) (Templater, bool, error) {
 	return nil, false, NewHTTPError(http.StatusBadRequest, "unknown template: %q", name)
 }
 
+// parseStartDate converts a raw analysis start date to a time. Publishers send milliseconds since
+// the epoch as either a JSON string or a JSON number, so both are accepted.
+func parseStartDate(raw any) (time.Time, error) {
+	var text string
+	switch v := raw.(type) {
+	case string:
+		text = v
+	case float64:
+		text = strconv.FormatInt(int64(v), 10)
+	default:
+		return time.Time{}, fmt.Errorf("expected a string or a number, got %T", raw)
+	}
+
+	millisec, err := strconv.ParseInt(text, 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%q is not a count of milliseconds since the epoch: %w", text, err)
+	}
+
+	return time.Unix(0, millisec*int64(time.Millisecond)), nil
+}
+
+// addStartDate replaces the payload's raw start date with a formatted time. An unusable value is
+// replaced with the empty string, which the templates omit, rather than being defaulted: the old
+// fallback of time.Unix(0, 0) rendered as a confident and wrong "Jan 1 1970" in the email body.
+func addStartDate(payload map[string]any) {
+	raw, present := payload["startdate"]
+	if !present || raw == nil {
+		log.Error("the analysis start date is missing from the payload; the email will omit it")
+		payload["startdate"] = ""
+		return
+	}
+
+	startDate, err := parseStartDate(raw)
+	if err != nil {
+		log.Errorf("unable to parse the analysis start date; the email will omit it: %s", err)
+		payload["startdate"] = ""
+		return
+	}
+
+	payload["startdate"] = startDate
+}
+
 // addTemplateSpecificValues derives the extra payload entries that individual templates need.
 func addTemplateSpecificValues(templateName string, payload map[string]any, de DESettings) error {
 	switch templateName {
 	case "analysis_status_change", "analysis_periodic_notification":
-		var startDateText, resultFolderPath, analysisID string
+		var resultFolderPath, analysisID string
 
-		if err := ExtractDetails(payload, &startDateText, "startdate"); err != nil {
-			log.Errorf("unable to extract the analysis start date: %s", err)
-			startDateText = ""
-		}
-		millisec, err := strconv.ParseInt(startDateText, 10, 64)
-		if err != nil {
-			log.Errorf("unable to parse the analysis start date %q: %s", startDateText, err)
-		}
-		payload["startdate"] = time.Unix(0, millisec*int64(time.Millisecond))
+		addStartDate(payload)
 
 		if err := ExtractDetails(payload, &resultFolderPath, "analysisresultsfolder", "result_folder_path"); err != nil {
 			log.Errorf("unable to extract the analysis result folder path: %s", err)

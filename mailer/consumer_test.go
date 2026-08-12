@@ -78,7 +78,7 @@ func TestDrainReturnsWhenIdle(t *testing.T) {
 	consumer := &Consumer{}
 	done := make(chan struct{})
 	go func() {
-		consumer.Drain(drainTimeout)
+		consumer.Drain(30 * time.Second)
 		close(done)
 	}()
 

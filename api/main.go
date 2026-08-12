@@ -11,7 +11,13 @@ import (
 	"github.com/cyverse-de/notifications/mailer"
 	"github.com/cyverse-de/notifications/model"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
+
+// emailRequestBodyLimit caps the size of a request to the /mail endpoint. Attachments arrive
+// base64-encoded in the JSON body, so this allows roughly 12MB of attachments, comfortably more
+// than the SMTP relay will accept anyway.
+const emailRequestBodyLimit = "16M"
 
 // API defines the REST API of the notifications service
 type API struct {
@@ -41,7 +47,9 @@ func (a API) RegisterHandlers() {
 
 	// Outbound email. Unversioned because it isn't part of the notifications API proper; it
 	// was absorbed from the retired de-mailer service, whose callers post to a bare base URL.
-	a.Echo.POST("/mail", a.EmailRequestHandler)
+	// The body limit applies only to this route because it's the only one whose handler reads
+	// the whole body into memory, and this service also serves the notifications API.
+	a.Echo.POST("/mail", a.EmailRequestHandler, middleware.BodyLimit(emailRequestBodyLimit))
 
 	// Register the group for API version 1.
 	v1Group := a.Echo.Group("/v1")

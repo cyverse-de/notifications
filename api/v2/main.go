@@ -17,6 +17,7 @@ type API struct {
 	AMQPSettings *common.AMQPSettings
 	AMQPClient   *messaging.Client
 	DB           *sql.DB
+	UserSuffix   common.UserSuffix
 	Service      string
 	Title        string
 	Version      string

@@ -21,6 +21,7 @@ func (a *API) MarkMessagesAsSeen(c echo.Context) error {
 			Message: "missing required query parameter: user",
 		})
 	}
+	user = a.UserSuffix.Qualify(user)
 
 	// Extract and validate the request body.
 	uuidList := new(model.UUIDList)
@@ -148,6 +149,7 @@ func (a *API) DeleteMessages(c echo.Context) error {
 			Message: "missing required query parameter: user",
 		})
 	}
+	user = a.UserSuffix.Qualify(user)
 
 	// Extract and validate the request body.
 	uuidList := new(model.UUIDList)
@@ -216,6 +218,7 @@ func (a *API) DeleteMatchingMessages(c echo.Context) error {
 			Message: "missing required query parameter: user",
 		})
 	}
+	user = a.UserSuffix.Qualify(user)
 
 	// Extract and reformat the filter.
 	var notificationType string

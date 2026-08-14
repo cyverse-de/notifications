@@ -27,6 +27,7 @@ func (a API) updateMultipleMessages(
 			Message: "missing required query parameter: user",
 		})
 	}
+	user = a.UserSuffix.Qualify(user)
 
 	// Parse and validate the message body.
 	body := new(model.MultipleMessageUpdateRequest)
@@ -125,6 +126,7 @@ func (a *API) updateSingleMessage(
 			Message: "missing required query parameter: user",
 		})
 	}
+	user = a.UserSuffix.Qualify(user)
 
 	// Begin a database transaction
 	tx, err := a.DB.Begin()

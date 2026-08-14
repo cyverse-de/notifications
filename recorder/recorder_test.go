@@ -208,7 +208,7 @@ func TestRecord(t *testing.T) {
 			body := marshalRequest(t, tt.mutate)
 			databaseClient := NewMockDatabaseClient(tt.wantUnread)
 			messagingClient := NewMockMessagingClient()
-			r := New(databaseClient, messagingClient)
+			r := New(databaseClient, messagingClient, testUserSuffix)
 
 			err := r.Record(context.Background(), tt.updateType, body, FakeRoutingKey)
 			assert.NoError(err)
@@ -226,7 +226,8 @@ func TestRecord(t *testing.T) {
 				t.Fatal("no notification was saved")
 			}
 			assert.Equal(tt.wantType, saved.NotificationType, "incorrect notification type")
-			assert.Equal("sarahr", saved.User, "incorrect user")
+			assert.Equal("sarahr@iplantcollaborative.org", saved.User,
+				"the stored notification is keyed by the qualified username")
 			assert.Equal(FakeRoutingKey, saved.RoutingKey, "incorrect routing key")
 			assert.JSONEq(string(body), saved.Message, "the raw request body must be stored verbatim")
 
@@ -322,7 +323,7 @@ func TestRecordRejectsBadInput(t *testing.T) {
 
 			databaseClient := NewMockDatabaseClient(42)
 			messagingClient := NewMockMessagingClient()
-			r := New(databaseClient, messagingClient)
+			r := New(databaseClient, messagingClient, testUserSuffix)
 
 			err := r.Record(context.Background(), "analysis", body, FakeRoutingKey)
 
@@ -341,7 +342,7 @@ func TestPublishesHappenAfterCommit(t *testing.T) {
 	databaseClient := NewMockDatabaseClient(42)
 	databaseClient.CommitErr = errors.New("commit failed")
 	messagingClient := NewMockMessagingClient()
-	r := New(databaseClient, messagingClient)
+	r := New(databaseClient, messagingClient, testUserSuffix)
 
 	err := r.Record(context.Background(), "analysis", marshalRequest(t, nil), FakeRoutingKey)
 
@@ -359,7 +360,7 @@ func TestEmailPayloadIsNotRewritten(t *testing.T) {
 	assert := assert.New(t)
 
 	messagingClient := NewMockMessagingClient()
-	r := New(NewMockDatabaseClient(42), messagingClient)
+	r := New(NewMockDatabaseClient(42), messagingClient, testUserSuffix)
 
 	err := r.Record(context.Background(), "analysis", marshalRequest(t, nil), FakeRoutingKey)
 	assert.NoError(err)
@@ -374,7 +375,7 @@ func TestEmailPayloadIsNotRewritten(t *testing.T) {
 
 func TestOutgoingJSONShapeIsUnchanged(t *testing.T) {
 	databaseClient := NewMockDatabaseClient(42)
-	r := New(databaseClient, NewMockMessagingClient())
+	r := New(databaseClient, NewMockMessagingClient(), testUserSuffix)
 
 	if err := r.Record(context.Background(), "analysis", marshalRequest(t, nil), FakeRoutingKey); err != nil {
 		t.Fatalf("unexpected error: %s", err.Error())
@@ -392,4 +393,47 @@ func TestOutgoingJSONShapeIsUnchanged(t *testing.T) {
 
 	assert.JSONEq(t, string(expected), string(actual),
 		"outgoing_json is a wire contract read by db/listings.go; its shape must not change")
+}
+
+// testUserSuffix is the qualification the recorder applies to database-bound usernames.
+var testUserSuffix = common.NewUserSuffix("iplantcollaborative.org")
+
+func TestUsernameIsQualifiedForStorageOnly(t *testing.T) {
+	assert := assert.New(t)
+
+	databaseClient := NewMockDatabaseClient(42)
+	messagingClient := NewMockMessagingClient()
+	r := New(databaseClient, messagingClient, testUserSuffix)
+
+	err := r.Record(context.Background(), "analysis", marshalRequest(t, nil), FakeRoutingKey)
+	assert.NoError(err)
+
+	// The DE identifies users by the qualified name, so that is what the foreign key resolves
+	// against.
+	assert.Equal("sarahr@iplantcollaborative.org", databaseClient.SavedNotification.User,
+		"the stored notification must reference the qualified username")
+
+	// The outgoing message is served back to clients verbatim out of outgoing_json, and every
+	// caller sends and expects the bare username. Qualifying it here would change the wire
+	// contract.
+	assert.Equal("sarahr", messagingClient.PublishedNotificationMessage.Message.User,
+		"the published notification must keep the bare username")
+}
+
+func TestUsernameAlreadyAnAddressResolvesToTheDEAccount(t *testing.T) {
+	assert := assert.New(t)
+
+	databaseClient := NewMockDatabaseClient(42)
+	r := New(databaseClient, NewMockMessagingClient(), testUserSuffix)
+
+	body := marshalRequest(t, func(req map[string]any) {
+		req["user"] = "stephen.wright@utoronto.ca"
+	})
+	err := r.Record(context.Background(), "analysis", body, FakeRoutingKey)
+	assert.NoError(err)
+
+	// Truncate-then-append, matching apps.user/append-username-suffix. Appending outright would
+	// resolve to a "…@utoronto.ca@iplantcollaborative.org" account no other service produces.
+	assert.Equal("stephen.wright@iplantcollaborative.org", databaseClient.SavedNotification.User,
+		"a username that is already an address must resolve to its DE account")
 }

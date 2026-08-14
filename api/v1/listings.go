@@ -22,6 +22,7 @@ func (a API) GetMessagesHandler(c echo.Context) error {
 			Message: "missing required query parameter: user",
 		})
 	}
+	user = a.UserSuffix.Qualify(user)
 
 	// Extract and validate the limit query parameter.
 	defaultLimit := uint64(0)
@@ -121,6 +122,7 @@ func (a *API) GetUnseenMessagesHandler(c echo.Context) error {
 			Message: "missing required query parameter: user",
 		})
 	}
+	user = a.UserSuffix.Qualify(user)
 
 	// Start a transaction.
 	tx, err := a.DB.Begin()
@@ -164,6 +166,7 @@ func (a *API) CountMessagesHandler(c echo.Context) error {
 			Message: "missing required query parameter: user",
 		})
 	}
+	user = a.UserSuffix.Qualify(user)
 
 	// Extract and validate the seen query parameter.
 	seen, err := query.ValidateBoolPQueryParam(c, "seen")

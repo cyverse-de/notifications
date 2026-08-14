@@ -11,14 +11,15 @@ import (
 // removes or overrides settings from.
 func completeConfig() map[string]string {
 	return map[string]string{
-		"amqp.uri":             "amqp://guest:guest@rabbit:5672/de",
-		"amqp.exchange.name":   "de",
-		"amqp.exchange.type":   "topic",
-		"notifications.db.uri": "postgresql://guest:guest@dedb:5432/notifications?sslmode=disable",
-		"email.request":        "support@example.org",
-		"email.fromAddress":    "noreply@example.org",
-		"email.smtpHost":       "local-exim",
-		"de.base":              "https://de.example.org",
+		"amqp.uri":                 "amqp://guest:guest@rabbit:5672/de",
+		"amqp.exchange.name":       "de",
+		"amqp.exchange.type":       "topic",
+		"notifications.db.uri":     "postgresql://guest:guest@dedb:5432/notifications?sslmode=disable",
+		"notifications.uid.domain": "iplantcollaborative.org",
+		"email.request":            "support@example.org",
+		"email.fromAddress":        "noreply@example.org",
+		"email.smtpHost":           "local-exim",
+		"de.base":                  "https://de.example.org",
 	}
 }
 
@@ -41,6 +42,13 @@ func TestValidateConfig(t *testing.T) {
 			name:    "missing database URI",
 			omit:    []string{"notifications.db.uri"},
 			missing: []string{"notifications.db.uri"},
+		},
+		{
+			// Without it every user lookup would miss: callers send bare usernames and the
+			// DE stores qualified ones.
+			name:    "missing user domain",
+			omit:    []string{"notifications.uid.domain"},
+			missing: []string{"notifications.uid.domain"},
 		},
 		{
 			name:    "missing exchange settings",

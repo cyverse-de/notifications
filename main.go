@@ -155,6 +155,7 @@ var requiredConfigKeys = []string{
 	"amqp.exchange.name",
 	"amqp.exchange.type",
 	"notifications.db.uri",
+	"notifications.uid.domain",
 	"email.request",
 	"email.fromAddress",
 	"email.smtpHost",
@@ -265,12 +266,16 @@ func main() {
 		fromAddress,
 	)
 
+	// Callers send bare usernames; the DE stores them qualified.
+	userSuffix := common.NewUserSuffix(cfg.GetString("notifications.uid.domain"))
+
 	// Define the primary API handler.
 	a := api.API{
 		Echo:         e,
 		AMQPSettings: amqpSettings,
 		AMQPClient:   amqpClient,
 		DB:           db,
+		UserSuffix:   userSuffix,
 		Mailer:       emailProcessor,
 		Service:      serviceName,
 		Title:        serviceInfo.Title,
@@ -301,7 +306,7 @@ func main() {
 		recorderClient,
 		amqpSettings,
 		cfg.GetString("email.request"),
-		recorder.New(recorder.NewDatabaseClient(db), recorderClient),
+		recorder.New(recorder.NewDatabaseClient(db), recorderClient, userSuffix),
 	)
 	if err = consumer.Listen(); err != nil {
 		e.Logger.Fatalf("unable to start recording notification events: %s", err.Error())

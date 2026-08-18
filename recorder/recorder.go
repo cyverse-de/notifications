@@ -32,13 +32,15 @@ type Request struct {
 type Recorder struct {
 	dbc             DatabaseClient
 	messagingClient MessagingClient
+	userSuffix      common.UserSuffix
 }
 
 // New returns a new recorder.
-func New(dbc DatabaseClient, messagingClient MessagingClient) *Recorder {
+func New(dbc DatabaseClient, messagingClient MessagingClient, userSuffix common.UserSuffix) *Recorder {
 	return &Recorder{
 		dbc:             dbc,
 		messagingClient: messagingClient,
+		userSuffix:      userSuffix,
 	}
 }
 
@@ -126,7 +128,10 @@ func (r *Recorder) buildNotificationMessage(
 		Seen:          request.Seen,
 		Subject:       request.Subject,
 		Type:          strings.ReplaceAll(request.NotificationType, "_", " "),
-		User:          request.User,
+		// From the payload, not the stored notification: this is served back to clients
+		// verbatim out of outgoing_json, and every caller sends and expects a bare
+		// username. request.User carries the qualified form the users table is keyed by.
+		User: payload.User,
 	}
 
 	return notificationMessage, nil
@@ -179,10 +184,11 @@ func (r *Recorder) Record(ctx context.Context, updateType string, body []byte, r
 		return classifyDatabaseError(err, "unable to register the notification type")
 	}
 
-	// Store the message in the database.
+	// Store the message in the database. User is qualified because it resolves to a users row;
+	// the outgoing message built below keeps the bare username the request arrived with.
 	storableRequest := &common.Notification{
 		NotificationType: updateType,
-		User:             request.User,
+		User:             r.userSuffix.Qualify(request.User),
 		Subject:          request.Subject,
 		Seen:             false,
 		Deleted:          false,
@@ -206,7 +212,7 @@ func (r *Recorder) Record(ctx context.Context, updateType string, body []byte, r
 	}
 
 	// Count the number of unread notifications.
-	unreadNotificationCount, err := r.dbc.CountUnreadNotifications(ctx, tx, request.User)
+	unreadNotificationCount, err := r.dbc.CountUnreadNotifications(ctx, tx, r.userSuffix.Qualify(request.User))
 	if err != nil {
 		return classifyDatabaseError(err, "unable to count the unread notifications")
 	}

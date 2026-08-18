@@ -25,6 +25,7 @@ type API struct {
 	AMQPSettings *common.AMQPSettings
 	AMQPClient   *messaging.Client
 	DB           *sql.DB
+	UserSuffix   common.UserSuffix
 	Mailer       *mailer.EmailProcessor
 	Service      string
 	Title        string
@@ -59,6 +60,7 @@ func (a API) RegisterHandlers() {
 		AMQPSettings: a.AMQPSettings,
 		AMQPClient:   a.AMQPClient,
 		DB:           a.DB,
+		UserSuffix:   a.UserSuffix,
 		Service:      a.Service,
 		Title:        a.Title,
 		Version:      a.Version,
@@ -73,6 +75,7 @@ func (a API) RegisterHandlers() {
 		AMQPSettings: a.AMQPSettings,
 		AMQPClient:   a.AMQPClient,
 		DB:           a.DB,
+		UserSuffix:   a.UserSuffix,
 		Service:      a.Service,
 		Title:        a.Title,
 		Version:      a.Version,

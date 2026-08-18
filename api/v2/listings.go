@@ -23,6 +23,7 @@ func (a *API) GetMessagesHandler(c echo.Context) error {
 			Message: "missing required query parameter: user",
 		})
 	}
+	user = a.UserSuffix.Qualify(user)
 
 	// Extract and validate the limit query parameter.
 	defaultLimit := uint64(0)

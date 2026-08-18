@@ -102,7 +102,7 @@ func (a *API) MarkAllMessagesAsSeen(c echo.Context) error {
 	}()
 
 	// Obtain the user ID.
-	userID, err := db.GetUserID(ctx, tx, usernameWrapper.User)
+	userID, err := db.GetUserID(ctx, tx, a.UserSuffix.Qualify(usernameWrapper.User))
 	if err != nil {
 		a.Echo.Logger.Error(err)
 		return err

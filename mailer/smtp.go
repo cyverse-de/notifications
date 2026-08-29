@@ -1,6 +1,7 @@
 package mailer
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -9,7 +10,9 @@ import (
 	"net"
 	"net/smtp"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -239,8 +242,76 @@ func (d *Dialer) hello(client *smtp.Client, address string) (*smtp.Client, error
 	return client, nil
 }
 
-// authenticate is a no-op until credential support is added; sending without credentials is
-// the existing behavior.
-func (d *Dialer) authenticate(_ *smtp.Client) error {
+// authenticate presents the configured credentials, if any. A relay with no AUTH support and
+// credentials configured is an error: silently sending unauthenticated would fail later in a
+// way that points nowhere near the actual mistake.
+func (d *Dialer) authenticate(client *smtp.Client) error {
+	if d.settings.User == "" {
+		return nil
+	}
+
+	ok, mechanisms := client.Extension("AUTH")
+	if !ok {
+		return fmt.Errorf(
+			"SMTP server %s does not support authentication, but email.smtpUser is set",
+			d.settings.Host,
+		)
+	}
+
+	if err := client.Auth(d.authMechanism(mechanisms)); err != nil {
+		return fmt.Errorf(
+			"SMTP authentication failed (bad credentials, or the server requires a different mechanism?): %w",
+			err,
+		)
+	}
+
 	return nil
+}
+
+// authMechanism picks the strongest mechanism the relay advertises. The order follows gomail's,
+// which this service used before it owned the transport, so relays that only offer LOGIN keep
+// working. Note that Go's PlainAuth refuses to send credentials over an unencrypted connection
+// to any host but localhost, so PLAIN effectively requires one of the TLS settings.
+func (d *Dialer) authMechanism(mechanisms string) smtp.Auth {
+	switch {
+	case strings.Contains(mechanisms, "CRAM-MD5"):
+		return smtp.CRAMMD5Auth(d.settings.User, d.settings.Password)
+	case strings.Contains(mechanisms, "LOGIN") && !strings.Contains(mechanisms, "PLAIN"):
+		return &loginAuth{username: d.settings.User, password: d.settings.Password, host: d.settings.Host}
+	default:
+		return smtp.PlainAuth("", d.settings.User, d.settings.Password, d.settings.Host)
+	}
+}
+
+// loginAuth implements the non-standard LOGIN mechanism, which some relays offer in place of
+// PLAIN. net/smtp has no implementation of it; this follows gomail's (auth.go).
+type loginAuth struct {
+	username string
+	password string
+	host     string
+}
+
+func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	if !server.TLS && !slices.Contains(server.Auth, "LOGIN") {
+		return "", nil, errors.New("refusing to send credentials over an unencrypted connection")
+	}
+	if server.Name != a.host {
+		return "", nil, fmt.Errorf("expected to be talking to %s, not %s", a.host, server.Name)
+	}
+	return "LOGIN", nil, nil
+}
+
+func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if !more {
+		return nil, nil
+	}
+
+	switch {
+	case bytes.Equal(fromServer, []byte("Username:")):
+		return []byte(a.username), nil
+	case bytes.Equal(fromServer, []byte("Password:")):
+		return []byte(a.password), nil
+	default:
+		return nil, fmt.Errorf("unexpected server challenge: %s", fromServer)
+	}
 }

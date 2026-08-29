@@ -8,12 +8,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net"
+	"net/smtp"
 	"os"
 	"path/filepath"
 	"slices"
@@ -579,5 +581,100 @@ func TestSendTrustsTheConfiguredCA(t *testing.T) {
 	err = untrusting.send("noreply@example.org", []string{"someone@example.org"}, testMessage("body\r\n"))
 	if err == nil {
 		t.Fatal("expected the self-signed relay to be rejected without the configured CA")
+	}
+}
+
+// TestAuthMechanismSelection checks that the strongest mechanism the relay advertises is the
+// one chosen. Selection is tested directly rather than end to end because driving three
+// challenge-response exchanges through the fake relay would test the fake, not the choice.
+func TestAuthMechanismSelection(t *testing.T) {
+	tests := []struct {
+		name       string
+		advertised string
+		expect     string
+	}{
+		{"prefers CRAM-MD5", "CRAM-MD5 LOGIN PLAIN", "CRAM-MD5"},
+		{"LOGIN when PLAIN is absent", "LOGIN", "LOGIN"},
+		{"PLAIN when both are offered", "LOGIN PLAIN", "PLAIN"},
+		{"PLAIN by default", "PLAIN", "PLAIN"},
+		{"PLAIN when nothing is recognized", "XOAUTH2", "PLAIN"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dialer, err := NewDialer(SMTPSettings{
+				Host: "relay.example.org", Port: 587, User: "someone", Password: "secret", UseTLS: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			auth := dialer.authMechanism(tt.advertised)
+			proto, _, err := auth.Start(&smtp.ServerInfo{
+				Name: "relay.example.org",
+				TLS:  true,
+				Auth: strings.Fields(tt.advertised),
+			})
+			if err != nil {
+				t.Fatalf("starting authentication failed: %s", err)
+			}
+			if proto != tt.expect {
+				t.Errorf("expected the %s mechanism, got %s", tt.expect, proto)
+			}
+		})
+	}
+}
+
+// TestSendAuthenticatesOverTLS checks that configured credentials actually reach the relay.
+// It runs over implicit TLS because Go's PlainAuth refuses to send credentials over an
+// unencrypted connection to a remote host.
+func TestSendAuthenticatesOverTLS(t *testing.T) {
+	server := newFakeTLSSMTPServer(t, "AUTH PLAIN")
+	dialer, err := NewDialer(SMTPSettings{
+		Host: "127.0.0.1", Port: server.port(), UseSSL: true,
+		User: "someone", Password: "secret", InsecureSkipVerify: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dialer.send("noreply@example.org", []string{"someone@example.org"}, testMessage("body\r\n"))
+	if err != nil {
+		t.Fatalf("send failed: %s", err)
+	}
+
+	commands := server.collectCommands(t)
+	index := slices.IndexFunc(commands, func(c string) bool { return strings.HasPrefix(c, "AUTH PLAIN ") })
+	if index < 0 {
+		t.Fatalf("expected an AUTH PLAIN command; got: %v", commands)
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(commands[index], "AUTH PLAIN "))
+	if err != nil {
+		t.Fatalf("the AUTH argument was not base64: %s", err)
+	}
+	if want := "\x00someone\x00secret"; string(decoded) != want {
+		t.Errorf("expected the credentials %q, got %q", want, decoded)
+	}
+}
+
+// TestSendReportsARelayThatCannotAuthenticate checks that credentials configured against a
+// relay with no AUTH support are reported clearly instead of being silently dropped.
+func TestSendReportsARelayThatCannotAuthenticate(t *testing.T) {
+	server := newFakeTLSSMTPServer(t) // advertises no AUTH
+	dialer, err := NewDialer(SMTPSettings{
+		Host: "127.0.0.1", Port: server.port(), UseSSL: true,
+		User: "someone", Password: "secret", InsecureSkipVerify: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dialer.send("noreply@example.org", []string{"someone@example.org"}, testMessage("body\r\n"))
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "email.smtpUser") {
+		t.Errorf("expected the error to name the setting at fault, got: %s", err)
 	}
 }

@@ -5,7 +5,12 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/smtp"
 	"os"
+	"strconv"
+	"time"
 )
 
 // defaultLocalName is the HELO name used when the machine hostname isn't available. It's the
@@ -112,4 +117,80 @@ func localHostname() string {
 		return hostname
 	}
 	return defaultLocalName
+}
+
+// dialTimeout bounds the TCP connect and, for implicit TLS, the handshake. A relay that hasn't
+// answered in this long isn't going to.
+const dialTimeout = 30 * time.Second
+
+// send delivers one already-built message. Its signature is what gomail.SendFunc expects, so
+// that gomail keeps doing message construction while this package owns the connection.
+func (d *Dialer) send(from string, to []string, msg io.WriterTo) error {
+	client, err := d.connect()
+	if err != nil {
+		return err
+	}
+	defer client.Close() //nolint:errcheck
+
+	if err := d.authenticate(client); err != nil {
+		return err
+	}
+
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("sender %s rejected: %w", from, err)
+	}
+	for _, recipient := range to {
+		if err := client.Rcpt(recipient); err != nil {
+			return fmt.Errorf("recipient %s rejected: %w", recipient, err)
+		}
+	}
+
+	w, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := msg.WriteTo(w); err != nil {
+		_ = w.Close()
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+
+	return client.Quit()
+}
+
+// connect opens a connection to the relay and greets it. Implicit TLS and STARTTLS are added
+// in a later step; this handles the cleartext case.
+func (d *Dialer) connect() (*smtp.Client, error) {
+	address := net.JoinHostPort(d.settings.Host, strconv.Itoa(d.settings.Port))
+
+	conn, err := net.DialTimeout("tcp", address, dialTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("connecting to SMTP server %s: %w", address, err)
+	}
+
+	client, err := smtp.NewClient(conn, d.settings.Host)
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("SMTP greeting from %s failed: %w", address, err)
+	}
+
+	return d.hello(client, address)
+}
+
+// hello sends EHLO with the configured local name. net/smtp defaults to "localhost", which
+// lands in the receiving MTA's Received header and raises the message's spam score.
+func (d *Dialer) hello(client *smtp.Client, address string) (*smtp.Client, error) {
+	if err := client.Hello(d.localName); err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("SMTP HELO with %s failed: %w", address, err)
+	}
+	return client, nil
+}
+
+// authenticate is a no-op until credential support is added; sending without credentials is
+// the existing behavior.
+func (d *Dialer) authenticate(_ *smtp.Client) error {
+	return nil
 }

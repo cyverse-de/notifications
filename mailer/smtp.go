@@ -2,8 +2,11 @@ package mailer
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -314,4 +317,21 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("unexpected server challenge: %s", fromServer)
 	}
+}
+
+// generateMessageID returns a unique RFC 5322 Message-ID using the sender's domain, or the
+// local hostname when the From address has none. gomail supplies a Date header but not this
+// one, and its absence raises spam scores when no MTA in the delivery path adds it.
+func generateMessageID(from string) string {
+	domain := localHostname()
+	if at := strings.LastIndex(from, "@"); at != -1 && at < len(from)-1 {
+		domain = strings.TrimRight(from[at+1:], ">")
+	}
+
+	random := make([]byte, 8)
+	if _, err := rand.Read(random); err != nil {
+		binary.BigEndian.PutUint64(random, uint64(time.Now().UnixNano()))
+	}
+
+	return fmt.Sprintf("<%d.%s@%s>", time.Now().UnixNano(), hex.EncodeToString(random), domain)
 }

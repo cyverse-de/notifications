@@ -2,6 +2,7 @@ package mailer
 
 import (
 	"bufio"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -676,5 +677,94 @@ func TestSendReportsARelayThatCannotAuthenticate(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "email.smtpUser") {
 		t.Errorf("expected the error to name the setting at fault, got: %s", err)
+	}
+}
+
+// TestGenerateMessageID checks the Message-ID's domain. Its absence raises spam scores when no
+// MTA in the delivery path supplies one, and a domain that doesn't match the sender is itself
+// a spam signal.
+func TestGenerateMessageID(t *testing.T) {
+	original := osHostname
+	t.Cleanup(func() { osHostname = original })
+	osHostname = func() (string, error) { return "mail.example.org", nil }
+
+	tests := []struct {
+		name   string
+		from   string
+		suffix string
+	}{
+		{"bare address", "noreply@cyverse.org", "@cyverse.org>"},
+		{"address with a display name", "DE <noreply@cyverse.org>", "@cyverse.org>"},
+		{"no domain falls back to the hostname", "noreply", "@mail.example.org>"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := generateMessageID(tt.from)
+			if !strings.HasPrefix(id, "<") || !strings.HasSuffix(id, tt.suffix) {
+				t.Errorf("expected an ID of the form <...%s, got %q", tt.suffix, id)
+			}
+			if id == generateMessageID(tt.from) {
+				t.Error("expected consecutive Message-IDs to differ")
+			}
+		})
+	}
+}
+
+// TestEmailClientSendDeliversThroughTheDialer checks the integration: EmailClient builds the
+// message with gomail and the dialer puts it on the wire, with the headers a relay expects.
+func TestEmailClientSendDeliversThroughTheDialer(t *testing.T) {
+	server := newFakeSMTPServer(t)
+	dialer, err := NewDialer(SMTPSettings{Host: "127.0.0.1", Port: server.port()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := NewEmailClient(dialer, "noreply@cyverse.org")
+
+	request := &FormattedEmailRequest{
+		To:       []string{"to@example.org"},
+		Cc:       []string{"cc@example.org"},
+		Bcc:      []string{"bcc@example.org"},
+		Subject:  "Analysis complete",
+		MIMEType: HTMLMIMEType,
+		Body:     "<html><body><p>Your analysis finished.</p></body></html>",
+		Attachments: []Attachment{
+			{Filename: "report.txt", Data: base64.StdEncoding.EncodeToString([]byte("report contents"))},
+		},
+	}
+	if err := client.Send(context.Background(), request); err != nil {
+		t.Fatalf("send failed: %s", err)
+	}
+
+	commands := server.collectCommands(t)
+	for _, recipient := range []string{"to@example.org", "cc@example.org", "bcc@example.org"} {
+		want := "RCPT TO:<" + recipient + ">"
+		if !slices.Contains(commands, want) {
+			t.Errorf("expected %q; got: %v", want, commands)
+		}
+	}
+
+	message := <-server.data
+	for _, want := range []string{
+		"Subject: Analysis complete",
+		"To: to@example.org",
+		"Cc: cc@example.org",
+		"Message-ID: <",
+		"Date: ",
+		"text/plain",
+		"text/html",
+		"report.txt",
+	} {
+		if !strings.Contains(message, want) {
+			t.Errorf("delivered message missing %q:\n%s", want, message)
+		}
+	}
+	// Bcc recipients get the message, but must not be named in its headers.
+	if strings.Contains(message, "Bcc:") {
+		t.Errorf("the Bcc header leaked into the delivered message:\n%s", message)
+	}
+	// The HTML body must arrive with a generated plain-text alternative.
+	if !strings.Contains(message, "Your analysis finished.") {
+		t.Errorf("delivered message missing the plain-text alternative:\n%s", message)
 	}
 }

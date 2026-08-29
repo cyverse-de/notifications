@@ -122,8 +122,7 @@ func (r *EmailClient) Send(ctx context.Context, req *FormattedEmailRequest) erro
 		m.SetBody(req.MIMEType, req.Body)
 	}
 
-	// gomail builds the message; this package owns the connection, so that the TLS and
-	// authentication settings mean what they say.
+	// gomail builds the message; this package owns the connection.
 	if err := gomail.Send(gomail.SendFunc(r.dialer.send), m); err != nil {
 		log.Error(err)
 		return err

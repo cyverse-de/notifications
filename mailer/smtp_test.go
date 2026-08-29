@@ -176,8 +176,8 @@ func TestNewDialerLocalNameDefault(t *testing.T) {
 	}
 }
 
-// fakeSMTPServer accepts one SMTP session on a local port and records the commands and the
-// message body it receives. Ported from portal-conductor's emailsvc tests and extended with a
+// fakeSMTPServer accepts SMTP sessions on a local port and records the commands and message
+// bodies it receives. Ported from portal-conductor's emailsvc tests and extended with a
 // configurable ESMTP capability list so that tests can offer or withhold STARTTLS and AUTH.
 type fakeSMTPServer struct {
 	listener   net.Listener

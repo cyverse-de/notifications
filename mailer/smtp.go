@@ -19,15 +19,13 @@ import (
 	"time"
 )
 
-// defaultLocalName is the HELO name used when the machine hostname isn't available. It's the
-// name this service sent before the HELO name became configurable.
+// defaultLocalName is the HELO name used when the machine hostname isn't available.
 const defaultLocalName = "notifications"
 
 // osHostname is a seam so that tests can exercise the hostname lookup failing.
 var osHostname = os.Hostname
 
-// SMTPSettings describes how to reach the SMTP relay. The zero value plus a host describes the
-// unauthenticated cleartext relay this service talked to before these settings existed.
+// SMTPSettings describes how to reach the SMTP relay.
 type SMTPSettings struct {
 	Host               string
 	Port               int
@@ -125,12 +123,11 @@ func localHostname() string {
 	return defaultLocalName
 }
 
-// dialTimeout bounds the TCP connect and the SMTP greeting. A relay that hasn't answered in
-// this long isn't going to. A variable rather than a constant so that tests can shrink it.
+// dialTimeout bounds the TCP connect and the SMTP greeting. A variable rather than a constant
+// so that tests can shrink it.
 var dialTimeout = 30 * time.Second
 
-// send delivers one already-built message. Its signature is what gomail.SendFunc expects, so
-// that gomail keeps doing message construction while this package owns the connection.
+// send delivers one already-built message. The signature is what gomail.SendFunc expects.
 func (d *Dialer) send(from string, to []string, msg io.WriterTo) error {
 	client, err := d.connect()
 	if err != nil {
@@ -271,10 +268,9 @@ func (d *Dialer) authenticate(client *smtp.Client) error {
 	return nil
 }
 
-// authMechanism picks the strongest mechanism the relay advertises. The order follows gomail's,
-// which this service used before it owned the transport, so relays that only offer LOGIN keep
-// working. Note that Go's PlainAuth refuses to send credentials over an unencrypted connection
-// to any host but localhost, so PLAIN effectively requires one of the TLS settings.
+// authMechanism picks the strongest mechanism the relay advertises, so that a relay offering
+// only LOGIN still works. Go's PlainAuth refuses to send credentials over an unencrypted
+// connection to any host but localhost, so PLAIN effectively requires one of the TLS settings.
 func (d *Dialer) authMechanism(mechanisms string) smtp.Auth {
 	switch {
 	case strings.Contains(mechanisms, "CRAM-MD5"):

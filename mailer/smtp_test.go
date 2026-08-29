@@ -2,13 +2,22 @@ package mailer
 
 import (
 	"bufio"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -170,23 +179,46 @@ func TestNewDialerLocalNameDefault(t *testing.T) {
 type fakeSMTPServer struct {
 	listener   net.Listener
 	extensions []string
+	tlsConfig  *tls.Config
+	certPEM    []byte
 	commands   chan string
 	data       chan string
 }
 
-// newFakeSMTPServer starts a cleartext relay advertising the given ESMTP extensions.
+// newFakeSMTPServer starts a cleartext relay advertising the given ESMTP extensions. It can
+// still be upgraded in place by a STARTTLS command.
 func newFakeSMTPServer(t *testing.T, extensions ...string) *fakeSMTPServer {
 	t.Helper()
+	return startFakeSMTPServer(t, false, extensions...)
+}
+
+// newFakeTLSSMTPServer starts a relay that speaks TLS from the first byte, as a relay on the
+// implicit-TLS port does.
+func newFakeTLSSMTPServer(t *testing.T, extensions ...string) *fakeSMTPServer {
+	t.Helper()
+	return startFakeSMTPServer(t, true, extensions...)
+}
+
+func startFakeSMTPServer(t *testing.T, implicitTLS bool, extensions ...string) *fakeSMTPServer {
+	t.Helper()
+
+	cert, certPEM := testTLSCert(t)
+	tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if implicitTLS {
+		listener = tls.NewListener(listener, tlsConfig)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
 
 	server := &fakeSMTPServer{
 		listener:   listener,
 		extensions: extensions,
+		tlsConfig:  tlsConfig,
+		certPEM:    certPEM,
 		commands:   make(chan string, 64),
 		data:       make(chan string, 1),
 	}
@@ -195,17 +227,73 @@ func newFakeSMTPServer(t *testing.T, extensions ...string) *fakeSMTPServer {
 	return server
 }
 
-func (s *fakeSMTPServer) port() int {
-	return s.listener.Addr().(*net.TCPAddr).Port
+// testTLSCert generates a self-signed certificate valid for 127.0.0.1 and returns it along with
+// its PEM encoding, which doubles as the trust anchor fixture for email.smtpCACertFile. ECDSA
+// rather than RSA because a key is generated for every test that touches TLS.
+func testTLSCert(t *testing.T) (tls.Certificate, []byte) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "127.0.0.1"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return cert, certPEM
 }
 
-func (s *fakeSMTPServer) serve() {
-	conn, err := s.listener.Accept()
+// port returns the port the relay listens on, read back through the address rather than by a
+// type assertion, because the implicit-TLS listener wraps the TCP one.
+func (s *fakeSMTPServer) port() int {
+	_, port, err := net.SplitHostPort(s.listener.Addr().String())
 	if err != nil {
-		return
+		panic(err)
 	}
-	defer conn.Close() //nolint:errcheck
-	s.session(conn)
+	number, err := strconv.Atoi(port)
+	if err != nil {
+		panic(err)
+	}
+	return number
+}
+
+// serve handles sessions until the listener closes. More than one session is needed by the test
+// that checks a relay is rejected without a trust anchor and accepted with one.
+func (s *fakeSMTPServer) serve() {
+	for {
+		conn, err := s.listener.Accept()
+		if err != nil {
+			return
+		}
+		s.session(conn)
+		_ = conn.Close()
+	}
 }
 
 // session speaks just enough SMTP to satisfy net/smtp. conn is reassigned in place when the
@@ -231,6 +319,14 @@ func (s *fakeSMTPServer) session(conn net.Conn) {
 			s.writeCapabilities(write)
 		case "HELO":
 			write("250 fake.test")
+		case "STARTTLS":
+			write("220 ready to start TLS")
+			tlsConn := tls.Server(conn, s.tlsConfig)
+			if err := tlsConn.Handshake(); err != nil {
+				return
+			}
+			conn = tlsConn
+			reader = bufio.NewReader(conn)
 		case "AUTH":
 			write("235 authenticated")
 		case "MAIL", "RCPT":
@@ -378,5 +474,110 @@ func TestSendReportsAnUnreachableRelay(t *testing.T) {
 	// A relay that is down is not the caller's fault, so it must not be classified as a 4xx.
 	if code := ErrorCode(err); code != 500 {
 		t.Errorf("expected a transport failure to be a 500, got %d", code)
+	}
+}
+
+// TestSendRequiresSTARTTLSWhenConfigured is the behavior that justifies owning the transport:
+// gomail's dialer upgrades opportunistically and silently stays in cleartext when the relay
+// doesn't offer STARTTLS. With email.smtpUseTLS set, that has to be an error.
+func TestSendRequiresSTARTTLSWhenConfigured(t *testing.T) {
+	server := newFakeSMTPServer(t) // advertises no extensions
+	dialer, err := NewDialer(SMTPSettings{
+		Host: "127.0.0.1", Port: server.port(), UseTLS: true, InsecureSkipVerify: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dialer.send("noreply@example.org", []string{"someone@example.org"}, testMessage("body\r\n"))
+	if err == nil {
+		t.Fatal("expected an error when the relay does not advertise STARTTLS, got nil")
+	}
+	if !strings.Contains(err.Error(), "STARTTLS") {
+		t.Errorf("expected the error to mention STARTTLS, got: %s", err)
+	}
+
+	// Nothing may be delivered over the cleartext connection.
+	select {
+	case body := <-server.data:
+		t.Errorf("a message was delivered in cleartext:\n%s", body)
+	default:
+	}
+}
+
+// TestSendUpgradesWithSTARTTLS checks the STARTTLS path against a relay that offers it.
+func TestSendUpgradesWithSTARTTLS(t *testing.T) {
+	server := newFakeSMTPServer(t, "STARTTLS")
+	dialer, err := NewDialer(SMTPSettings{
+		Host: "127.0.0.1", Port: server.port(), UseTLS: true, InsecureSkipVerify: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dialer.send("noreply@example.org", []string{"someone@example.org"}, testMessage("body\r\n"))
+	if err != nil {
+		t.Fatalf("send failed: %s", err)
+	}
+
+	commands := server.collectCommands(t)
+	if !slices.Contains(commands, "STARTTLS") {
+		t.Errorf("expected a STARTTLS command; got: %v", commands)
+	}
+	if body := <-server.data; !strings.Contains(body, "body") {
+		t.Errorf("delivered message missing its body:\n%s", body)
+	}
+}
+
+// TestSendOverImplicitTLS checks email.smtpUseSSL against a relay that is encrypted from the
+// first byte.
+func TestSendOverImplicitTLS(t *testing.T) {
+	server := newFakeTLSSMTPServer(t)
+	dialer, err := NewDialer(SMTPSettings{
+		Host: "127.0.0.1", Port: server.port(), UseSSL: true, InsecureSkipVerify: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dialer.send("noreply@example.org", []string{"someone@example.org"}, testMessage("body\r\n"))
+	if err != nil {
+		t.Fatalf("send failed: %s", err)
+	}
+	if body := <-server.data; !strings.Contains(body, "body") {
+		t.Errorf("delivered message missing its body:\n%s", body)
+	}
+}
+
+// TestSendTrustsTheConfiguredCA checks that email.smtpCACertFile is what makes a relay with a
+// private certificate authority verifiable, and that verification is genuinely on: the same
+// relay must be rejected without the setting.
+func TestSendTrustsTheConfiguredCA(t *testing.T) {
+	server := newFakeTLSSMTPServer(t)
+
+	caFile := filepath.Join(t.TempDir(), "ca.pem")
+	if err := os.WriteFile(caFile, server.certPEM, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	trusting, err := NewDialer(SMTPSettings{
+		Host: "127.0.0.1", Port: server.port(), UseSSL: true, CACertFile: caFile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = trusting.send("noreply@example.org", []string{"someone@example.org"}, testMessage("body\r\n"))
+	if err != nil {
+		t.Fatalf("send with the configured CA failed: %s", err)
+	}
+	<-server.data
+
+	untrusting, err := NewDialer(SMTPSettings{Host: "127.0.0.1", Port: server.port(), UseSSL: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = untrusting.send("noreply@example.org", []string{"someone@example.org"}, testMessage("body\r\n"))
+	if err == nil {
+		t.Fatal("expected the self-signed relay to be rejected without the configured CA")
 	}
 }

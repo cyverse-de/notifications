@@ -49,19 +49,31 @@ configuration file template is shared across several services; nesting can come 
 | `email.smtpPassword` | string | `""` | SASL password |
 | `email.smtpUseTLS` | bool | `false` | Require STARTTLS after connecting; fail when the relay does not offer it |
 | `email.smtpUseSSL` | bool | `false` | Use implicit TLS from the first byte, as on port 465 |
-| `email.smtpLocalName` | string | `"notifications"` | Name sent in the SMTP HELO/EHLO |
+| `email.smtpLocalName` | string | `os.Hostname()` | Name sent in the SMTP HELO/EHLO |
 | `email.smtpInsecureSkipVerify` | bool | `false` | Skip verification of the relay's certificate |
 | `email.smtpCACertFile` | string | `""` | PEM bundle to trust in place of the system roots |
 
-Every new setting is optional, so `requiredConfigKeys` in `main.go` is unchanged. Every
-default reproduces the service's current behavior exactly: port 25, no authentication,
-no TLS, HELO name `notifications`. Existing deployments see no change on upgrade.
+Every new setting is optional, so `requiredConfigKeys` in `main.go` is unchanged. The
+transport defaults reproduce the service's current behavior: port 25, no authentication,
+no TLS.
 
-`email.smtpLocalName` defaults to the current hardcoded `notifications` rather than to
-`os.Hostname()`, which `portal-conductor` uses. Under Kubernetes `os.Hostname()` is the
-pod name, which is no more of a fully qualified domain name than `notifications` is and
-changes on every restart. Deployments talking to a relay that demands an FQDN set the
-setting explicitly.
+`email.smtpLocalName` is the one default that changes existing behavior. It follows
+`portal-conductor` in defaulting to `os.Hostname()` rather than keeping the hardcoded
+`notifications`, because a bare service name is never a fully qualified domain name,
+while a hostname sometimes is — on a VM or a container with its hostname set, this
+yields a HELO name that a receiving MTA can actually resolve, and receivers score an
+unresolvable HELO against the sender. Under Kubernetes it resolves to the pod name,
+which is no better than `notifications` but no worse either, so the default degrades
+gracefully instead of being uniformly wrong. Deployments that need a specific FQDN set
+the setting explicitly.
+
+The change is safe for the existing local exim deployment: as the comment being removed
+from `mailer/email.go` records, that relay authorizes senders by source address rather
+than by HELO name, so the only visible difference is which name appears in its mail logs.
+
+When `os.Hostname()` fails or returns an empty string, the fallback is `notifications`,
+the value in use today. `emailsvc` falls back to `localhost` (`emailsvc.go:147-152`),
+which is the exact string this feature is trying to avoid sending.
 
 ### Authentication mechanism
 
@@ -130,7 +142,9 @@ the message through `msg.WriteTo`, and quits.
 - `Send` sets one additional header, `Message-ID`, using `generateMessageID` ported from
   `emailsvc.go:230-241`. Its absence raises spam scores when no MTA in the delivery path
   supplies one. `Date` and the stripping of `Bcc` from the wire headers are *not* ported:
-  gomail already does both (`writeto.go:25` and `writeto.go:244`).
+  gomail already does both (`writeto.go:25` and `writeto.go:244`). `generateMessageID`
+  falls back to a domain when the `From` address has none, and uses the same hostname
+  helper as the HELO default so that the two cannot disagree.
 
 ### `main.go` (modified)
 
@@ -161,10 +175,12 @@ certificate serves double duty as the fixture for the `smtpCACertFile` and
 
 Cases:
 
-- Default cleartext send: correct EHLO name; `MAIL FROM`; one `RCPT TO` per address
+- Default cleartext send: the EHLO name is the machine hostname and is neither empty nor
+  `localhost`; `MAIL FROM`; one `RCPT TO` per address
   across `To`, `Cc`, and `Bcc`; `Message-ID` present in the delivered message; `Bcc`
   absent from the delivered headers; an attachment and an HTML alternative both intact.
-- A configured `email.smtpLocalName` appears in the EHLO.
+- A configured `email.smtpLocalName` appears in the EHLO, overriding the hostname.
+- The hostname lookup failing falls back to `notifications` rather than to `localhost`.
 - `UseTLS` against a relay that does not advertise STARTTLS returns an error, and no
   message is delivered.
 - `UseTLS` against a relay that does advertise it completes over the upgraded connection.

@@ -768,3 +768,58 @@ func TestEmailClientSendDeliversThroughTheDialer(t *testing.T) {
 		t.Errorf("delivered message missing the plain-text alternative:\n%s", message)
 	}
 }
+
+// TestSendDoesNotBlockOnASilentRelay checks that a relay which accepts the connection and then
+// says nothing fails instead of blocking forever. Pointing email.smtpPort at an implicit-TLS
+// relay without setting email.smtpUseSSL looks exactly like this from this end: the relay waits
+// for a ClientHello while the client waits for a greeting. dialTimeout only covers the TCP
+// connect, so without a deadline on the greeting itself the send goroutine is wedged for good.
+func TestSendDoesNotBlockOnASilentRelay(t *testing.T) {
+	original := dialTimeout
+	t.Cleanup(func() { dialTimeout = original })
+	dialTimeout = 200 * time.Millisecond
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	// Accept the connection and hold it open without ever writing a greeting.
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		accepted <- conn
+	}()
+	t.Cleanup(func() {
+		select {
+		case conn := <-accepted:
+			_ = conn.Close()
+		default:
+		}
+	})
+
+	dialer, err := NewDialer(SMTPSettings{
+		Host: "127.0.0.1", Port: listener.Addr().(*net.TCPAddr).Port,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- dialer.send("noreply@example.org", []string{"someone@example.org"}, testMessage("body\r\n"))
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected an error from a relay that never greets, got nil")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("send blocked on a relay that never greets: the SMTP greeting is not bounded by a deadline")
+	}
+}

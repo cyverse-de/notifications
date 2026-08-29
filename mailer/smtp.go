@@ -125,9 +125,9 @@ func localHostname() string {
 	return defaultLocalName
 }
 
-// dialTimeout bounds the TCP connect and, for implicit TLS, the handshake. A relay that hasn't
-// answered in this long isn't going to.
-const dialTimeout = 30 * time.Second
+// dialTimeout bounds the TCP connect and the SMTP greeting. A relay that hasn't answered in
+// this long isn't going to. A variable rather than a constant so that tests can shrink it.
+var dialTimeout = 30 * time.Second
 
 // send delivers one already-built message. Its signature is what gomail.SendFunc expects, so
 // that gomail keeps doing message construction while this package owns the connection.

@@ -249,8 +249,27 @@ func main() {
 	// Build the outbound email processor, absorbed from the retired de-mailer service. Both
 	// the /mail endpoint and the email_requests consumer below drive it.
 	fromAddress := cfg.GetString("email.fromAddress")
+
+	// The relay settings are all optional; their defaults describe the unauthenticated
+	// cleartext relay this service talked to before they existed.
+	cfg.SetDefault("email.smtpPort", 25)
+	smtpDialer, err := mailer.NewDialer(mailer.SMTPSettings{
+		Host:               cfg.GetString("email.smtpHost"),
+		Port:               cfg.GetInt("email.smtpPort"),
+		User:               cfg.GetString("email.smtpUser"),
+		Password:           cfg.GetString("email.smtpPassword"),
+		LocalName:          cfg.GetString("email.smtpLocalName"),
+		CACertFile:         cfg.GetString("email.smtpCACertFile"),
+		UseTLS:             cfg.GetBool("email.smtpUseTLS"),
+		UseSSL:             cfg.GetBool("email.smtpUseSSL"),
+		InsecureSkipVerify: cfg.GetBool("email.smtpInsecureSkipVerify"),
+	})
+	if err != nil {
+		e.Logger.Fatalf("invalid SMTP configuration: %s", err.Error())
+	}
+
 	emailProcessor := mailer.NewEmailProcessor(
-		mailer.NewEmailClient(cfg.GetString("email.smtpHost"), fromAddress),
+		mailer.NewEmailClient(smtpDialer, fromAddress),
 		mailer.DESettings{
 			Base:        cfg.GetString("de.base"),
 			Data:        cfg.GetString("de.data"),

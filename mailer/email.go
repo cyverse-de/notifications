@@ -13,14 +13,6 @@ import (
 const HTMLMIMEType = "text/html"
 const TextMIMEType = "text/plain"
 
-// smtpPort is the port the SMTP relay listens on. local-exim, the only relay this service
-// talks to, listens on the standard port.
-const smtpPort = 25
-
-// smtpLocalName is the name sent in the SMTP HELO. The relay authorizes senders by source
-// address rather than by HELO name, so this only has to identify the sender in mail logs.
-const smtpLocalName = "notifications"
-
 // FormattedEmailRequest represents a request to send an email that has already been formatted.
 type FormattedEmailRequest struct {
 	To          []string
@@ -57,16 +49,14 @@ func (r *FormattedEmailRequest) Validate() error {
 
 // EmailClient is a client used to send email messages to an SMTP server.
 type EmailClient struct {
-	smtpHost    string
-	smtpPort    int
+	dialer      *Dialer
 	fromAddress string
 }
 
-// NewEmailClient creates a new email client.
-func NewEmailClient(smtpHost string, from string) *EmailClient {
+// NewEmailClient creates a new email client that delivers through the given dialer.
+func NewEmailClient(dialer *Dialer, from string) *EmailClient {
 	return &EmailClient{
-		smtpHost:    smtpHost,
-		smtpPort:    smtpPort,
+		dialer:      dialer,
 		fromAddress: from,
 	}
 }
@@ -92,7 +82,9 @@ func (r *EmailClient) Send(ctx context.Context, req *FormattedEmailRequest) erro
 	}
 
 	m := gomail.NewMessage()
-	m.SetHeader("From", r.GetFromAddress(req))
+	fromAddress := r.GetFromAddress(req)
+	m.SetHeader("From", fromAddress)
+	m.SetHeader("Message-ID", generateMessageID(fromAddress))
 	m.SetHeader("mailed-by", "cyverse.org")
 	m.SetHeader("To", req.To...)
 	if len(req.Cc) != 0 {
@@ -130,8 +122,8 @@ func (r *EmailClient) Send(ctx context.Context, req *FormattedEmailRequest) erro
 		m.SetBody(req.MIMEType, req.Body)
 	}
 
-	d := gomail.Dialer{Host: r.smtpHost, Port: r.smtpPort, LocalName: smtpLocalName}
-	if err := d.DialAndSend(m); err != nil {
+	// gomail builds the message; this package owns the connection.
+	if err := gomail.Send(gomail.SendFunc(r.dialer.send), m); err != nil {
 		log.Error(err)
 		return err
 	}

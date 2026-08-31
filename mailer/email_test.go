@@ -27,7 +27,11 @@ func TestSendRejectsInvalidRequests(t *testing.T) {
 		},
 	}
 
-	client := NewEmailClient("smtp.example.org", "noreply@example.org")
+	dialer, err := NewDialer(SMTPSettings{Host: "smtp.example.org", Port: 25})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := NewEmailClient(dialer, "noreply@example.org")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

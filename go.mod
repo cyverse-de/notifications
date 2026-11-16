@@ -8,7 +8,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/cyverse-de/configurate v0.0.0-20260305004742-e3d1c1150f1e
 	github.com/cyverse-de/dbutil v1.0.1
-	github.com/cyverse-de/echo-middleware/v2 v2.0.3
+	github.com/cyverse-de/echo-middleware/v3 v3.0.2
 	github.com/cyverse-de/go-mod/otelutils v0.0.6
 	github.com/cyverse-de/messaging/v12 v12.0.2
 	github.com/go-playground/validator/v10 v10.30.6

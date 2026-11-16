@@ -27,6 +27,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
+	//nolint:staticcheck // TODO: migrate to github.com/labstack/echo-otel/v4; deferred because span names/attributes differ.
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 
 	_ "github.com/lib/pq"
@@ -201,7 +202,7 @@ func main() {
 
 	// Add middleware.
 	e.Use(otelecho.Middleware(serviceName))
-	e.Use(middleware.Logger())
+	e.Use(middleware.Logger()) //nolint:staticcheck // RequestLogger would change the access log format.
 	e.Use(middleware.Recover())
 	e.Use(redoc.Serve(redoc.Opts{Title: "DE Notifications API Documentation"}))
 

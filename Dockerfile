@@ -1,6 +1,6 @@
 FROM quay.io/goswagger/swagger AS swagger
 
-FROM golang:1.26 AS build-root
+FROM golang:1.27 AS build-root
 
 WORKDIR /build
 
